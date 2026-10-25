@@ -1,0 +1,229 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>residentevil</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <ProjectName>residentevil</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+    <!-- WholeProgramOptimization (/GL+/LTCG) miscompiles the task scheduler:
+         cross-TU inlining assumes standard prologues/epilogues, which the
+         naked-asm ESP-switching code (TaskScheduler.cpp) violates. With LTCG
+         enabled the standalone Release build corrupted task stacks/globals and
+         crashed intermittently at room load. Keep it off. -->
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(SolutionDir)bin\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)obj\$(Configuration)\</IntDir>
+    <TargetName>residentevil</TargetName>
+    <LocalDebuggerCommand>$(SolutionDir)bin\$(Configuration)\$(TargetName).exe</LocalDebuggerCommand>
+    <LocalDebuggerWorkingDirectory>$(SolutionDir)bin\$(Configuration)</LocalDebuggerWorkingDirectory>
+    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)bin\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)obj\$(Configuration)\</IntDir>
+    <TargetName>residentevil</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;DIRECT3D_VERSION=0x0b00;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/FS %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;xinput.lib;winmm.lib;dxguid.lib;imm32.lib;xaudio2.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;DIRECT3D_VERSION=0x0b00;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalOptions>/FS %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;xinput.lib;winmm.lib;dxguid.lib;imm32.lib;xaudio2.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="src\platform\win32\main.cpp" />
+    <ClCompile Include="src\platform\win32\window_proc.cpp" />
+    <ClCompile Include="src\platform\win32\platform.cpp" />
+    <ClCompile Include="src\platform\win32\video.cpp" />
+    <ClCompile Include="src\system\ConfigFile.cpp" />
+    <ClCompile Include="src\Globals.cpp" />
+    <ClCompile Include="src\game\SoundApi.cpp" />
+    <ClCompile Include="src\game\SoundTables.cpp" />
+    <ClCompile Include="src\marni\MarniSystem.cpp" />
+    <ClCompile Include="src\marni\MarniDX.cpp" />
+    <ClCompile Include="src\marni\PSXTexture.cpp" />
+    <ClCompile Include="src\marni\MarniBits.cpp" />
+    <ClCompile Include="src\marni\MarniSound.cpp" />
+    <ClCompile Include="src\system\SystemChecks.cpp" />
+    <ClCompile Include="src\system\CrashLog.cpp" />
+    <ClCompile Include="src\system\Installation.cpp" />
+    <ClCompile Include="src\system\DisplayConfig.cpp" />
+    <ClCompile Include="src\system\Cleanup.cpp" />
+    <ClCompile Include="src\system\AssetPath.cpp" />
+    <ClCompile Include="src\system\AudioFile.cpp" />
+    <ClCompile Include="src\system\PngImage.cpp" />
+    <ClCompile Include="src\game\FileLoader.cpp" />
+    <ClCompile Include="src\game\DoorSystem.cpp" />
+    <ClCompile Include="src\game\GameInit.cpp" />
+    <ClCompile Include="src\game\MainLoop.cpp" />
+    <ClCompile Include="src\game\LogosScreen.cpp" />
+    <ClCompile Include="src\game\DebugScreens.cpp" />
+    <ClCompile Include="src\game\DebugMenu.cpp" />
+    <ClCompile Include="src\game\DebugSaveLoad.cpp" />
+    <ClCompile Include="src\game\GameStart.cpp" />
+    <ClCompile Include="src\game\GameLoop.cpp" />
+    <ClCompile Include="src\game\MainMenu.cpp" />
+    <ClCompile Include="src\game\OptionsMenu.cpp" />
+    <ClCompile Include="src\game\MenuData.cpp" />
+    <ClCompile Include="src\game\TaskScheduler.cpp" />
+    <ClCompile Include="src\game\PlayerAnimations.cpp" />
+    <ClCompile Include="src\game\ObjectManager.cpp" />
+    <ClCompile Include="src\game\TmdAnimation.cpp" />
+    <ClCompile Include="src\game\TmdRenderer.cpp" />
+    <ClCompile Include="src\game\EntityModelLoader.cpp" />
+    <ClCompile Include="src\game\CollisionDebug.cpp" />
+    <ClCompile Include="src\game\RoomCollision.cpp" />
+    <ClCompile Include="src\game\RoomInit.cpp" />
+    <ClCompile Include="src\game\EffectSprites.cpp" />
+    <ClCompile Include="src\game\Room.cpp" />
+    <ClCompile Include="src\game\RoomEvents.cpp" />
+    <ClCompile Include="src\game\CmdFunctions.cpp" />
+    <ClCompile Include="src\game\PathTrail.cpp" />
+    <ClCompile Include="src\game\ComputerLab.cpp" />
+    <ClCompile Include="src\game\InteractiveScreen.cpp" />
+    <ClCompile Include="src\game\LabSlides.cpp" />
+    <ClCompile Include="src\game\DeathScreen.cpp" />
+    <ClCompile Include="src\game\EndingScreen.cpp" />
+    <ClCompile Include="src\game\Ps1EndingCredits.cpp" />
+    <ClCompile Include="src\game\Ps1FmvSubtitles.cpp" />
+    <ClCompile Include="src\game\entities\EntityCommon.cpp" />
+    <ClCompile Include="src\game\entities\CharacterNpc.cpp" />
+    <ClCompile Include="src\game\entities\Cerberus.cpp" />
+    <ClCompile Include="src\game\entities\Adder.cpp" />
+    <ClCompile Include="src\game\entities\Crow.cpp" />
+    <ClCompile Include="src\game\entities\Hunter.cpp" />
+    <ClCompile Include="src\game\entities\Chimera.cpp" />
+    <ClCompile Include="src\game\entities\Wasp.cpp" />
+    <ClCompile Include="src\game\entities\Neptune.cpp" />
+    <ClCompile Include="src\game\entities\MonsterPlant.cpp" />
+    <ClCompile Include="src\game\entities\Plant42.cpp" />
+    <ClCompile Include="src\game\entities\Plant42Roots.cpp" />
+    <ClCompile Include="src\game\entities\ComputerArms.cpp" />
+    <ClCompile Include="src\game\entities\SpiderWeb.cpp" />
+    <ClCompile Include="src\game\entities\Tyrant.cpp" />
+    <ClCompile Include="src\game\entities\WebSpinner.cpp" />
+    <ClCompile Include="src\game\entities\BlackTiger.cpp" />
+    <ClCompile Include="src\game\entities\Yawn.cpp" />
+    <ClCompile Include="src\game\entities\Zombie.cpp" />
+    <ClCompile Include="src\game\WeaponDamage.cpp" />
+    <ClCompile Include="src\game\dc\WeaponDamageTables.cpp" />
+    <ClCompile Include="src\game\dc\ItemTables.cpp" />
+    <ClCompile Include="src\game\dc\ItemNames.cpp" />
+    <ClCompile Include="src\game\dc\ItemDescriptions.cpp" />
+    <ClCompile Include="src\game\dc\Items.cpp" />
+    <ClCompile Include="src\game\dc\ItemModels.cpp" />
+    <ClCompile Include="src\game\dc\EntityModels.cpp" />
+    <ClCompile Include="src\game\dc\ArrangeStages.cpp" />
+    <ClCompile Include="src\game\dc\ArrangeSoundRows.cpp" />
+    <ClCompile Include="src\game\Rendering.cpp" />
+    <ClCompile Include="src\game\JpnTextTables.cpp" />
+    <ClCompile Include="src\game\PrintText.cpp" />
+    <ClCompile Include="src\game\TextureLoader.cpp" />
+    <ClCompile Include="src\game\FadeSprite.cpp" />
+    <ClCompile Include="src\game\EffectSystem.cpp" />
+    <ClCompile Include="src\game\SpriteRenderer.cpp" />
+    <ClCompile Include="src\marni\Marni3DObject.cpp" />
+    <ClCompile Include="src\game\InputSystem.cpp" />
+    <ClCompile Include="src\marni\MarniInput.cpp" />
+    <ClCompile Include="src\marni\MarniXInput.cpp" />
+    <ClCompile Include="src\game\SoundSystem.cpp" />
+    <ClCompile Include="src\game\TitleScreen.cpp" />
+    <ClCompile Include="src\game\CharacterSelectionScreen.cpp" />
+    <ClCompile Include="src\game\SaveLoadScreen.cpp" />
+    <ClCompile Include="src\game\GteMatrix.cpp" />
+    <ClCompile Include="src\video\VideoPlayback.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\Globals.h" />
+    <ClInclude Include="src\marni\MarniSystem.h" />
+    <ClInclude Include="src\marni\MarniDX.h" />
+    <ClInclude Include="src\marni\MarniBits.h" />
+    <ClInclude Include="src\marni\Marni3DObject.h" />
+    <ClInclude Include="src\marni\MarniInput.h" />
+    <ClInclude Include="src\marni\MarniXInput.h" />
+    <ClInclude Include="src\marni\MarniSound.h" />
+    <ClInclude Include="src\game\SpriteRenderer.h" />
+    <ClInclude Include="src\game\Ps1EndingCredits.h" />
+    <ClInclude Include="src\game\Ps1FmvSubtitles.h" />
+    <ClInclude Include="src\game\Ps1FmvSubtitleData.h" />
+    <ClInclude Include="src\game\TmdRenderer.h" />
+    <ClInclude Include="src\game\entities\EntityCommon.h" />
+    <ClInclude Include="src\game\entities\Zombie.h" />
+    <ClInclude Include="src\system\PngImage.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

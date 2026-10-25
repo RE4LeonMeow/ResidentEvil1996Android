@@ -1,0 +1,14 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'org.re1.launcher'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'org.re1.launcher'
+        minSdk 29
+        targetSdk 35
+        versionCode 29
+        versionName '1.00'
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    androidResources { noCompress += ['wasm'] }
+}

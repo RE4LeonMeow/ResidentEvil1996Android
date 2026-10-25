@@ -1,0 +1,54 @@
+; config.ini - Resident Evil PC decomp configuration.
+;
+; This is the shipped template. The game copies it into the package as
+; config.ini; edit that copy freely. The [Display], [Player] and [Input] values
+; are rewritten by the game on exit. Everything else is yours to edit and is
+; never touched. Comments are kept.
+;
+; The [Input] bindings are platform-specific (Windows virtual-key codes vs SDL
+; scancodes for Linux), so that section is absent here: the build's compiled
+; defaults apply until the first exit writes them out.
+
+[Display]
+; 0 = windowed, 1 = fullscreen
+FullScreen=0
+; Resolution width
+Width=640
+; Resolution height
+Height=480
+; Bits per pixel (16 or 32)
+BitDepth=16
+; Wait for vblank on present. 0 = off (default, and what the original did
+; in a window): the engine paces itself to 33 ms per tick in software.
+VSync=0
+
+[Assets]
+; Folder that holds the USA/ and JPN/ data trees. Relative paths are resolved
+; from the game binary's own directory. Leave it empty to use that directory
+; itself, i.e. put USA/ (and optionally JPN/) next to the executable.
+Path=
+; Which tree to run. USA = North American/GOG, JPN = Japanese PC (Biohazard).
+; Selects the subfolder of Path that every asset uses.
+Version=USA
+
+[Save]
+; Folder holding savedat*.dat, relative to the binary's directory unless
+; written absolute. Leave it empty for <Assets Path>/SAVE: with the default
+; [Assets] Path that is SAVE/ beside the executable, the layout the original
+; used, and an existing save/ or Save/ is found as well.
+Path=
+
+[Game]
+; OG = the PC release (default); DC = the PS1 Director's Cut overlay.
+Mode=OG
+; DC enables the PS1 staff-credit overlay automatically. Set this to 1 to use it
+; with OG assets when DATA\STAFF.STF, DATA\STAFF2.STF and DATA\BIO.TIM are present.
+Ps1EndingCredits=0
+; Set to 1 to let the movies the original leaves unskippable (the endings, the
+; staff rolls, DMF and DME) be skipped with the usual buttons like any other FMV.
+SkipUnskippableFmv=0
+
+[Debug]
+; Master switch for the port-added debug features: F1 debug menu, F6
+; texture viewer, F8 collision overlay. 0 = off, 1 = on.
+EnableDebug=0

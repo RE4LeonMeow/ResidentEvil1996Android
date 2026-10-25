@@ -1,0 +1,2812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RE1 RDT Event Editor</title>
+<style>
+  :root {
+    --bg: #101410; --panel: #182018; --panel2: #1e281e; --panel3: #243024;
+    --fg: #c8d4c8; --dim: #7a8a7a; --accent: #6fc46f; --red: #d06060;
+    --amber: #d0a860; --blue: #6fa8c4; --violet: #a88fd0;
+    --border: #2c3c2c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px 20px; background: var(--bg); color: var(--fg);
+    font-family: "Segoe UI", system-ui, sans-serif; font-size: 14px;
+  }
+  h1 { font-size: 19px; margin: 0 0 3px; color: var(--accent); letter-spacing: 1px; }
+  .sub { color: var(--dim); font-size: 12px; margin-bottom: 14px; }
+  a { color: var(--blue); }
+
+  #drop {
+    border: 2px dashed var(--border); border-radius: 8px; padding: 22px;
+    text-align: center; color: var(--dim); cursor: pointer; margin-bottom: 14px;
+    transition: border-color .15s, color .15s;
+  }
+  #drop.over { border-color: var(--accent); color: var(--accent); }
+
+  .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  .btn {
+    background: var(--panel2); border: 1px solid var(--accent); color: var(--accent);
+    border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 13px;
+  }
+  .btn:hover:not(:disabled) { background: #243424; }
+  .btn:disabled { border-color: var(--border); color: var(--dim); cursor: default; }
+  .btn.small { padding: 3px 9px; font-size: 12px; }
+  .btn.warn { border-color: var(--amber); color: var(--amber); }
+  .btn.danger { border-color: var(--red); color: var(--red); }
+  #status { color: var(--dim); font-size: 12px; margin-left: auto; text-align: right; }
+  #status.ok { color: var(--accent); }
+  #status.err { color: var(--red); }
+  #status.warn { color: var(--amber); }
+
+  .cols { display: grid; grid-template-columns: 300px 1fr; gap: 12px; align-items: start; }
+  @media (max-width: 1100px) { .cols { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; margin-bottom: 12px;
+  }
+  .panel h2 {
+    font-size: 12px; margin: 0 0 8px; color: var(--accent); text-transform: uppercase;
+    letter-spacing: 1px; border-bottom: 1px solid var(--border); padding-bottom: 4px;
+  }
+  .mono { font-family: Consolas, "Courier New", monospace; }
+
+  /* script list */
+  .scriptlist { max-height: 380px; overflow-y: auto; }
+  .scriptrow {
+    display: flex; gap: 8px; align-items: baseline; padding: 4px 7px; border-radius: 5px;
+    cursor: pointer; font-size: 12px; border: 1px solid transparent;
+  }
+  .scriptrow:hover { background: var(--panel2); }
+  .scriptrow.active { background: var(--panel3); border-color: var(--accent); }
+  .scriptrow .idx { color: var(--accent); width: 26px; flex: none; font-family: Consolas, monospace; }
+  .scriptrow .meta { color: var(--dim); font-family: Consolas, monospace; font-size: 11px; }
+  .scriptrow .dirty { color: var(--amber); }
+
+  /* budget */
+  .bar { height: 7px; background: var(--panel3); border-radius: 4px; overflow: hidden; margin: 5px 0 3px; }
+  .bar > div { height: 100%; background: var(--accent); transition: width .15s, background .15s; }
+  .bar.over > div { background: var(--red); }
+
+  table.kv { width: 100%; border-collapse: collapse; font-size: 11.5px; font-family: Consolas, monospace; }
+  table.kv td { padding: 1px 4px; }
+  table.kv td:first-child { color: var(--dim); }
+  table.kv tr.hi td { color: var(--accent); }
+
+  /* opcode list */
+  .oplist { max-height: 72vh; overflow-y: auto; }
+  .op {
+    border: 1px solid transparent; border-radius: 5px; margin-bottom: 1px;
+    font-family: Consolas, "Courier New", monospace; font-size: 12px;
+  }
+  .op:hover { background: var(--panel2); }
+  .op.sel { background: var(--panel3); border-color: var(--accent); }
+  .op.edited > .ophead .oname { color: var(--amber); }
+  .ophead { display: flex; gap: 9px; align-items: baseline; padding: 3px 7px; cursor: pointer; }
+  .ophead .off { color: var(--dim); width: 58px; flex: none; }
+  .ophead .st  { width: 30px; flex: none; text-align: center; border-radius: 3px; font-size: 10px; }
+  .st0 { background: #203020; color: var(--accent); }
+  .st1 { background: #202c38; color: var(--blue); }
+  .st2 { background: #2c2438; color: var(--violet); }
+  .st3 { background: #383020; color: var(--amber); }
+  .stc { background: #382020; color: var(--red); }
+  .std { background: #262626; color: var(--dim); }
+  .ophead .hex  { color: var(--dim); width: 210px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ophead .oname { width: 130px; flex: none; }
+  .ophead .note { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .opbody { padding: 8px 10px 10px 66px; border-top: 1px solid var(--border); }
+
+  .fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 7px 14px; margin-bottom: 9px; }
+  .field label { display: block; color: var(--dim); font-size: 11px; margin-bottom: 2px; font-family: "Segoe UI", system-ui, sans-serif; }
+  .field input, .field select, .hexin {
+    width: 100%; background: var(--panel2); border: 1px solid var(--border);
+    color: var(--fg); border-radius: 5px; padding: 3px 6px; font-size: 12px;
+    font-family: Consolas, monospace;
+  }
+  .field input:focus, .field select:focus, .hexin:focus { outline: 1px solid var(--accent); }
+  .field .hint { color: #5f6f5f; font-size: 10px; margin-top: 1px; font-family: "Segoe UI", system-ui, sans-serif; }
+  .rowbtns { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+  .sublist { margin: 6px 0 0; padding: 6px 8px; background: var(--panel2); border-radius: 5px; border: 1px solid var(--border); }
+  .sublist .cmd { color: var(--blue); }
+  /* One row per command in a run_scd / exec_scd payload. The payload used to be
+     one semicolon-joined line, which was unreadable past two commands. */
+  .payrow { display: flex; gap: 8px; align-items: baseline; font-family: Consolas, monospace;
+            font-size: 11px; padding: 1px 0; }
+  .payrow + .payrow { border-top: 1px solid rgba(255,255,255,.04); }
+  .payrow .poff  { color: #5f6f5f; width: 42px; flex: none; text-align: right; }
+  .payrow .phex  { color: var(--dim); width: 128px; flex: none; overflow: hidden;
+                   text-overflow: ellipsis; white-space: nowrap; }
+  .payrow .pname { color: var(--blue); width: 150px; flex: none; }
+  .payrow .pnote { color: var(--dim); flex: 1; min-width: 0; }
+  .payrow.pcond .pname { color: var(--amber); }
+  .payrow.pbad  .pname, .payrow.pbad .pnote { color: var(--red); }
+  .payrow.sel { background: var(--panel3); }
+  .payrow.clickable { cursor: pointer; }
+  .payrow.clickable:hover { background: var(--panel3); }
+  .paybody { margin: 2px 0 6px 50px; padding: 6px 8px; background: var(--panel);
+             border-left: 2px solid var(--accent); border-radius: 0 4px 4px 0; }
+  .paybody .fields { margin-bottom: 0; }
+  .paynofields { color: #5f6f5f; font-size: 11px; font-family: "Segoe UI", system-ui, sans-serif; }
+  .warnline { color: var(--amber); font-size: 11px; margin-top: 5px; }
+  .errline { color: var(--red); font-size: 11px; margin-top: 5px; }
+
+  .filterbar { display: flex; gap: 8px; margin-bottom: 8px; }
+  .filterbar input { flex: 1; background: var(--panel2); border: 1px solid var(--border); color: var(--fg); border-radius: 5px; padding: 4px 8px; font-size: 12px; }
+  .pill { display: inline-block; background: var(--panel3); border-radius: 3px; padding: 0 5px; color: var(--dim); font-size: 10px; }
+  pre.dump {
+    font-family: Consolas, monospace; font-size: 11px; color: var(--dim);
+    white-space: pre; overflow: auto; background: var(--panel2); padding: 8px;
+    border-radius: 6px; border: 1px solid var(--border); max-height: 400px; margin: 0;
+  }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+<h1>RE1 RDT SCRIPT EDITOR</h1>
+<div class="sub">
+  Reads and rewrites all three script sections of a ROOM*.RDT, picked with the
+  <b>section</b> selector in the toolbar:
+  <span class="mono">0x60</span> init SCD (runs once on room load),
+  <span class="mono">0x64</span> main SCD (runs every frame), and
+  <span class="mono">0x68</span> the event scripts (the cutscene VM).
+  The two SCD sections share one opcode set, taken from the port's
+  <span class="mono">CmdFunctions.cpp</span> using the port handler names
+  (<span class="mono">cmd_&lt;subject&gt;_&lt;verb&gt;</span>, see
+  <span class="mono">docs/SCD_SCRIPT_SYSTEM.md</span>); the event VM is a different grammar entirely and comes
+  from <span class="mono">RoomEvents.cpp</span>. Both were verified against the original.
+</div>
+<div class="sub" style="margin-top:6px">
+  <b>Flag operands read from the MSB.</b> <span class="mono">cmd_bit_op</span> masks with
+  <span class="mono">0x80000000 &gt;&gt; index</span> and <span class="mono">cmd_bit_test</span> shifts left by it,
+  so raw index 31 is <b>bit 0</b>. Decoded lines show both (<span class="mono">bit=0(msbidx 31)</span>);
+  the <i>bit index</i> field in the editor takes the raw MSB-counted value.
+  <span class="mono">mirror_set</span> lines also decode the room mirror parameters - and a
+  <span class="mono">bit0=0</span> there does not mean the mirror is off, because the plane-X rooms
+  enable it with a following <span class="mono">bit_op</span>.
+</div>
+
+<div id="drop">Drop a <b>ROOM????.RDT</b> here, or click to pick one</div>
+<input type="file" id="fileinput" class="hidden" accept=".rdt,.RDT">
+
+<div id="app" class="hidden">
+
+  <div class="toolbar">
+    <select class="btn small" id="secsel" title="which script section to edit"></select>
+    <button class="btn" id="btnSave">Download modified RDT</button>
+    <button class="btn small" id="btnUndo">Undo</button>
+    <button class="btn small" id="btnRedo">Redo</button>
+    <button class="btn small" id="btnRevert">Revert all</button>
+    <button class="btn small" id="btnDump">Export disassembly</button>
+    <span id="status"></span>
+  </div>
+
+  <div class="cols">
+    <div>
+      <div class="panel">
+        <h2>File</h2>
+        <table class="kv" id="fileinfo"></table>
+      </div>
+
+      <div class="panel">
+        <h2>Region budget</h2>
+        <div class="bar" id="budgetBar"><div></div></div>
+        <div class="mono" id="budgetText" style="font-size:11px;color:var(--dim)"></div>
+        <div style="font-size:11px;color:var(--dim);margin-top:6px">
+          If the rebuilt region no longer fits between the event table and the next RDT
+          section, it is <b>appended at end of file</b> and header 0x68 is repointed.
+          Nothing else moves, so every other section pointer stays valid.
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Scripts</h2>
+        <div class="scriptlist" id="scriptlist"></div>
+        <div class="rowbtns">
+          <button class="btn small" id="btnNewScript">Append empty script</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>RDT sections</h2>
+        <table class="kv" id="sections"></table>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <h2 id="opsTitle">Opcodes</h2>
+        <div id="segBanner" style="margin-bottom:8px"></div>
+        <div class="filterbar">
+          <input id="filter" placeholder="filter: mnemonic, note text, or hex bytes (e.g. 83 04)">
+          <button class="btn small" id="btnCollapse">Collapse all</button>
+        </div>
+        <div class="oplist" id="oplist"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel hidden" id="dumpPanel">
+  <h2>Disassembly</h2>
+  <pre class="dump" id="dumpText"></pre>
+</div>
+
+<script>
+"use strict";
+
+// ===========================================================================
+// Tables. Widths and semantics from src/game/RoomEvents.cpp, which was checked
+// instruction-for-instruction against 0x0041d6a0 / 0x0041da30 / 0x0041e1a0.
+// ===========================================================================
+
+// Control flow, tested BEFORE the state dispatch exactly as the VM does.
+// len 0 on 0xFC means "read the width from the byte at +1".
+const CTRL = {
+  0xF6: { name:'push_wait',  len:1, note:'depth++ then fall into wait' },
+  0xF7: { name:'wait',       len:1, note:'block while main_state_flags bit9 or menu active' },
+  0xF8: { name:'push_count', len:4, note:'depth++, counter = i16 @+2, fall into dec' },
+  0xF9: { name:'dec_count',  len:3, note:'counter--; when 0 advance 3 and pop' },
+  0xFA: { name:'loop_begin', len:4, note:'depth++, counter = i16 @+2, mark resume' },
+  0xFB: { name:'loop_end',   len:1, note:'counter--; branch back to the mark unless 0' },
+  0xFC: { name:'call',       len:0, note:'depth++, callStack = +2, jump += byte@+1' },
+  0xFD: { name:'call_cmd',   len:1, note:'run the SCD cmd at callStack top; loop while != 0' },
+  0xFE: { name:'nop_yield',  len:1, note:'advance 1, yield the frame' },
+  0xFF: { name:'end',        len:1, note:'deactivate this event slot' },
+};
+
+const S0 = {
+  0x00: { name:'nop',            len:1 },
+  0x01: { name:'enter_state1',   len:1, note:'animation state' },
+  0x02: { name:'enter_state2_i', len:1, note:'movement state + reset entity action' },
+  0x03: { name:'enter_state2',   len:1, note:'movement state' },
+  0x04: { name:'set_entity',     len:3 },
+  0x05: { name:'event_create',   len:4 },
+  0x06: { name:'run_scd',        len:0, note:'inline SCD block, total width = byte @+1' },
+  0x07: { name:'exec_scd',       len:0, note:'one SCD command, total width = byte @+1' },
+  0x08: { name:'event_reinit',   len:2 },
+  0x09: { name:'event_kill',     len:2 },
+};
+
+const S1 = {
+  0x00: { name:'s1_nop',         len:1 },
+  0x80: { name:'s1_end_clear',   len:1, note:'clear ignore_player, back to state 0' },
+  0x81: { name:'s1_lookat',      len:10, note:'width is 2 when the low nibble of flags is 0' },
+  0x82: { name:'s1_lookat_off',  len:1, note:'clear lookAtFlags bit 0x10' },
+  0x83: { name:'s1_pose_full',   len:7, note:'state=8; behaviour, target c6/c8, completion flag' },
+  0x84: { name:'s1_pose_anim',   len:4, note:'state=8, behaviour forced to 1' },
+  0x85: { name:'s1_pose_beh',    len:4, note:'state=8, behaviour and animation both given' },
+  0x86: { name:'s1_idle',        len:1, note:'state=1, behaviour=0, clear hit_state' },
+  0x87: { name:'s1_flags',       len:4, note:'OR / SET / XOR on scd_entity_flags' },
+  0x88: { name:'s1_timer',       len:4, note:'scd_timer = u16 @+2' },
+  0x89: { name:'s1_frame_remap', len:2, note:'animation_frame_id, remapped via g_ScdAnimRemap' },
+  0x8A: { name:'s1_frame',       len:2, note:'animation_frame_id, no remap' },
+  0x8B: { name:'s1_end',         len:1, note:'back to state 0' },
+};
+
+const S2 = {
+  0x00: { name:'s2_nop',        len:1 },
+  0x01: { name:'s2_end',        len:1, note:'back to state 0' },
+  0x02: { name:'s2_step_pos',   len:1, note:'position += speed' },
+  0x03: { name:'s2_step_rot',   len:1, note:'rotation += move_step' },
+  0x04: { name:'s2_step_both',  len:1, note:'position += speed, rotation += move_step' },
+  0x05: { name:'s2_set_speed',  len:4 },
+  0x06: { name:'s2_set_step',   len:4 },
+  0x07: { name:'s2_set_pos',    len:8, note:'localMatrix.t = i16 @+2,+4,+6' },
+  0x08: { name:'s2_set_byte',   len:3, note:'entity[0x84 + off] = value, ONE byte' },
+  0x09: { name:'s2_hit_state',  len:2 },
+  0x0A: { name:'s2_set_field',  len:4 },
+  0x0B: { name:'s2_set_rot',    len:8, note:'rotation SVECTOR = u16 @+2,+4,+6' },
+};
+
+// SCD command widths (bytes AFTER the opcode). Names follow the port handlers
+// (cmd_<subject>_<verb>, see docs/SCD_SCRIPT_SYSTEM.md §5) and every width was
+// re-measured against the g_ScdOpcodes advances in src/game/CmdFunctions.cpp,
+// whose dispatch table maps the handlers sequentially onto 0x00..0x50.
+//
+// Width corrections over the old table:
+//   0x2D got_item        1 -> 3 (jumps into cmd_room_action, which advances 4)
+//   0x1F omodel_set      3 -> 27 (cmd_omodel_set ends g_ScdOpcodes += 0x1C)
+//   0x34 model_tint_set  1 -> 7  (eight pointer bumps inside the handler)
+//   0x46 room_lights_set 1 -> 43 (three 12-byte light records + ambient words)
+// 0x17 / 0x28 / 0x33 are variable-width - see SCD_VLEN_TOTAL.
+const SCD_CMDS = {
+  0x00:['block_end',0], 0x01:['if',1], 0x02:['else',1], 0x03:['end_if',1],
+  0x04:['bit_test',3], 0x05:['bit_op',3], 0x06:['state_byte_test',3], 0x07:['state_word_test',5],
+  0x08:['state_byte_set',3], 0x09:['cut_lock_set',1], 0x0a:['current_cut_set',1], 0x0b:['message_set',3],
+  0x0c:['door_set',25], 0x0d:['room_action_set',17], 0x0e:['skip_2bytes_opcode',1], 0x0f:['mirror_set',7],
+  0x10:['used_item_test',1], 0x11:['picked_item_test',1], 0x12:['room_action_reset',9], 0x13:['room_action_arm',3],
+  0x14:['scd_event_create',3], 0x15:['bgm_play',1], 0x16:['bgm_stop',1], 0x17:['sfx_3d_play',9],
+  0x18:['item_model_set',25], 0x19:['model_flag_set',3], 0x1a:['item_search',1],
+  // enemy_set is 22 bytes TOTAL: cmd_enemy_set (0x004617d0) ends with g_ScdOpcodes += 0x16
+  // and reads operands as far out as [0x15]. At the old width of 3 the stream
+  // desynced 19 bytes into the record and every following opcode was noise, so
+  // any room that spawns enemies decoded into garbage.
+  0x1b:['enemy_set',21],
+  0x1c:['room_light_fade_set',5], 0x1d:['equipped_item_test',1], 0x1e:['voice_play',3],
+  // omodel_set: 28 bytes TOTAL unpacked into a 0xA4-byte room-object record -
+  // docs/RDT_FILE_FORMAT.md documents all operands up to +0x1A.
+  0x1f:['omodel_set',27],
+  0x20:['player_pos_set',13], 0x21:['enemy_pos_set',13], 0x22:['item_count_test',3],
+  0x23:['cut_lock_write',1],
+  0x24:['room_action',3], 0x25:['room_sprite_set',3],
+  0x26:['dead_slot_hang_26',0, 'DEAD SLOT - bare RET, consumes nothing, the interpreter spins forever'],
+  0x27:['snd_fade_set',1],
+  0x28:['enemy_prop_set',5],
+  0x29:['fmv_set',1], 0x2a:['effect_spawn',11], 0x2b:['attack_anim_set',3],
+  0x2c:['item_remove',1], 0x2d:['got_item',3, 'same action runner as 0x24; raises main_state 0x400 and toggles 0x800'],
+  0x2e:['dead_slot_hang_2e',0, 'DEAD SLOT - bare RET, identical to 0x26'],
+  0x2f:['snd_pan_vol_set',3],
+  0x30:['boundary_set',11], 0x31:['state_word_set',3], 0x32:['skip_4bytes',3], 0x33:['player_prop_set',1],
+  0x34:['model_tint_set',7], 0x35:['obj_flag_set',3], 0x36:['obj_field_test',3], 0x37:['room_bgm_state_set',3],
+  0x38:['dpad_test',3], 0x39:['enemy_flags_get',1], 0x3a:['cut_zone_set',3], 0x3b:['obj_rotation_set',5],
+  0x3c:['player_dist_test',5], 0x3d:['bullet_effect_spawn',11],
+  // 0x3D/0x3E are a pair: spawn stashes type + matrix, clear sweeps those slots.
+  0x3e:['bullet_effect_clear',1], 0x3f:['player_dir_test',5],
+  0x40:['light_param_set',15], 0x41:['entity_posy_set',3], 0x42:['effect_clear_typed',3],
+  0x43:['bgm_volume_ramp',3],
+  0x44:['scd_event_kill',1], 0x45:['player_posy_add',1],
+  // room_lights_set: 44 bytes TOTAL - three 12-byte light records into
+  // RDT.lights[0..2] plus the three ambient shorts, ending in setBackColor.
+  0x46:['room_lights_set',43], 0x47:['obj_transform_set',13],
+  0x48:['effect_pool_clear',1], 0x49:['room_sprite_hide',1], 0x4a:['bgm_restore',1], 0x4b:['bgm_stop_all',1],
+  0x4c:['item_record_transfer',3], 0x4d:['player_joint_tint',1], 0x4e:['effect_flags_modify',3],
+  0x4f:['costume_variant_set',1, 'writes param & 1 into g_bCostumeVariant (costume selector)'],
+  0x50:['costume_variant_test',1, 'returns g_bCostumeVariant'],
+};
+
+// Variable-width commands: total instruction length INCLUDING the opcode,
+// selected by an operand. Advances verified branch-by-branch in CmdFunctions.cpp.
+//   0x17 sfx_3d_play: posType byte @+4 - 10 bytes when posType <= 3, else 6.
+//   0x28 enemy_prop_set: subCmd byte @+3 - 8 for subCmd 1, 4 for 6/8, else 6.
+//     Unlisted subCmds advance NOTHING in the original (the interpreter would
+//     spin), so a row decoding one is worth a second look.
+//   0x33 player_prop_set: subCmd byte @+1 - 2 or 4 bytes per cmd_player_prop_set's cases
+//     (0:2, 4:2, 6:2, 7:2; others 4). Unlisted subCmds likewise never advance.
+// Operand indices are relative to the bytes AFTER the opcode:
+//   0x17 sfx_3d_play: [bank][sndId,vol][posType,enemyIdx] -> posType = arg 3
+//   0x28 enemy_prop_set: [pad][enemyIdx,subCmd][param:u16] -> subCmd = arg 2
+//   0x33 player_prop_set: [subCmd][param:u16] -> subCmd = arg 0
+// Unlisted subCmds of 0x28/0x33 advance NOTHING in the original (the
+// interpreter would spin), so a row decoding one is worth a second look.
+const SCD_VLEN_TOTAL = {
+  0x17: a => (a[3] !== undefined && a[3] <= 3) ? 10 : 6,
+  0x28: a => a[2] === 1 ? 8 : ((a[2] === 6 || a[2] === 8) ? 4 : 6),
+  0x33: a => ({0:2, 1:4, 3:4, 4:2, 5:4, 6:2, 7:2, 8:4, 9:4, 10:4})[a[0]] || 2,
+};
+
+// Flag banks for cmd_bit_test / cmd_bit_op (0x04 / 0x05), per
+// docs/SCD_SCRIPT_SYSTEM.md §4. Bank 9 (g_itemUseFlags, 0x00d213a0) is the
+// per-frame item-use flag array: bits itemId-0x1B = "item usable here",
+// bit 0x3F = radio transmission active.
+const BANKS = ['ScenarioFlags','ScenarioFlags2','LocksFlags','EnemiesFlags','SysFlags',
+               'main_state_flags','message_flags','roomItemsFlags','RoomFlags','itemUseFlags'];
+
+// Commands whose return value IS the condition (returning 0 aborts the
+// straight-line run and unwinds to the pending cmd_if resume address).
+// docs/SCD_SCRIPT_SYSTEM.md §2.
+const COND_OPS = new Set([0x04,0x06,0x07,0x10,0x11,0x1A,0x1D,0x22,0x36,0x38,0x3C,0x3F,0x50]);
+
+// Named flag constants for bit_test (0x04) / bit_op (0x05), keyed by SCD bank.
+//
+// The selector byte IS the flag id: Flg_on / Flg_ck (0x00473ef0 / 0x00473f40,
+// see SaveLoadScreen.cpp) take the same MSB-counted bit number - dword =
+// id >> 5, mask = 0x80000000 >> (id & 0x1F) - so SCENARIO_FLAG_* constants
+// map 1:1 onto the selector byte with no conversion.
+//
+// Banks 0/1: src/game/BioCard.h + docs/SCENARIO_FLAGS.md (code-verified bits
+// only). Bank 5/6/9: bits with a single setter in the SCD command set.
+// Banks 2/3/7/8 are per-room/per-door ids with no global constants.
+const FLAG_CONSTANTS = {
+  0: {
+    0x00: 'SCENARIO_FLAG_STAGE_VARIANT - character room variant (0 chris, 1 jill)',
+    0x10: 'SCENARIO_FLAG_YAWN_BITE - Yawn bite event',
+    0x13: 'SCENARIO_FLAG_ITEM13_USE_LOCK - item 0x13 use rejected while set',
+    0x16: 'SCENARIO_FLAG_CHEMICAL_COMBINE - chemical combine performed (V-JOLT)',
+    0x1E: 'SCENARIO_FLAG_PANEL_VARIANT_A - passcode-panel initial-state variant',
+    0x1F: 'SCENARIO_FLAG_PANEL_VARIANT_B - passcode-panel initial-state variant',
+    0x20: 'SCENARIO_FLAG_INTERACTIVE_SCREEN - interactive screen active gate',
+    0x21: 'SCENARIO_FLAG_PANEL_SOLVED - lab passcode panel solved',
+    0x29: 'SCENARIO_FLAG_PLANT42_DEAD - Plant 42 defeated',
+    0x2A: 'SCENARIO_FLAG_ALTERNATE_OUTFIT - alternate outfit (model id + 8)',
+    0x37: 'SCENARIO_FLAG_WESKER_VARIANT - Wesker later-animation variant',
+    0x47: 'SCENARIO_FLAG_YAWN_SERUM - first Yawn poisons only while clear',
+    0x48: 'SCENARIO_FLAG_PROGRESS_48 - acks the Plant 42 objective (stops the guardhouse map highlight)',
+    0x49: 'SCENARIO_FLAG_PROGRESS_49 - acks serum objective 1 (set by the serum room init)',
+    0x4A: 'SCENARIO_FLAG_PROGRESS_4A - acks serum objective 2 (set by the serum room init)',
+    0x5B: 'SCENARIO_FLAG_MONSTER_PLANT_PROG - monster plant progression (3+ hits)',
+    0x7B: 'SCENARIO_FLAG_SECOND_PLAYTHROUGH - hard mode ("once again...")',
+    0x7C: 'SCENARIO_FLAG_HAS_LOCKPICK - has the lockpick (Jill)',
+    0x7D: 'SCENARIO_FLAG_MENU_FADE_LATCH - fade-in latch, cleared on menu close',
+    0x7E: 'SCENARIO_FLAG_INF_R_LAUNCHER - infinite rocket launcher',
+    0x7F: 'SCENARIO_FLAG_HAS_RADIO - has the radio (item 0x4D)',
+  },
+  1: {
+    0x0B: 'SCENARIO2_FLAG_JILL_FIRST_RUN - Jill first-playthrough marker',
+    0x22: 'SCENARIO2_FLAG_PROGRESS_22 - radio-tab availability gate',
+    0x23: 'SCENARIO2_FLAG_PROGRESS_23 - Jill serum objective 1 (ROOM1001); reused in stages 3/6',
+    0x24: 'SCENARIO2_FLAG_PROGRESS_24 - Jill serum objective 2 (ROOM1001); reused in stages 3/6',
+    0x2D: 'SCENARIO2_FLAG_SERUM_OBJ1_CHRIS - Chris serum objective 1 (pillar-passage cutscene)',
+    0x2E: 'SCENARIO2_FLAG_SERUM_OBJ2_CHRIS - Chris serum objective 2 (front-of-attic cutscene)',
+    0x38: 'SCENARIO2_FLAG_PLANT42_OBJ - Plant 42 / V-JOLT objective; also gates Rebecca\'s radio tab',
+    0x43: 'SCENARIO2_FLAG_YAWN_POISONED - poisoned by Yawn (serum clears it)',
+    0x48: 'SCENARIO2_FLAG_PROGRESS_48 - stage 2 room 7 keeps 2 BGM channels',
+    0x4B: 'SCENARIO2_FLAG_SECOND_SURVIVOR - ending "second survivor" bit',
+    0x55: 'SCENARIO2_FLAG_PROGRESS_55 - stage 2 room 7 Barry/Hunter cutscene played',
+    0x5C: 'SCENARIO2_FLAG_PROGRESS_5C - stage 2 room 7 third BGM channel (Jill)',
+    0xC0: 'SCENARIO2_FLAG_PARTNER_ALIVE - ending "partner survived" bit',
+  },
+  // Bank 5 is g_main_state_flags (0x00be41c0) and SPILLS INTO
+  // g_main_state_flags2 (0x00be41c4): selector 0x20+ resolves to byte offset 4,
+  // i.e. the adjacent dword. Names are the MSF_* constants in src/Globals.h;
+  // selector id = 31 - bitIndex, so the table reads high bit first.
+  5: {
+    0x00: 'MSF_SCREEN_REBUILD (bit 31 / 0x80000000) - screen mode: full sprite rebuild present',
+    0x01: 'MSF_SCREEN_STANDALONE (bit 30 / 0x40000000) - screen mode: flat colour present, bg quad + world sprites off',
+    0x02: 'MSF_FADE_ACTIVE (bit 29 / 0x20000000) - fade transition in progress',
+    0x03: 'MSF_CONTINUE_GAME (bit 28 / 0x10000000) - continue/load (set) vs new game (clear)',
+    0x04: 'MSF_UNUSED_27 (bit 27 / 0x08000000) - no writer in code or scripts; only ever cleared',
+    0x05: 'MSF_ROOM_TRANSITION (bit 26 / 0x04000000) - room/door transition animation running',
+    0x06: 'MSF_GAMEPLAY_ACTIVE (bit 25 / 0x02000000) - game_loop is running',
+    0x07: 'MSF_PLAYER_DEAD (bit 24 / 0x01000000) - player dead / ending fade running',
+    0x08: 'MSF_CHAR_VARIANT (bit 23 / 0x00800000) - room RDT variant: 0 = Chris, 1 = Jill',
+    0x09: 'MSF_OPTIONS_REQUEST (bit 22 / 0x00400000) - open options_menu instead of main_menu',
+    0x0A: 'MSF_UNUSED_21 (bit 21 / 0x00200000) - no reader or writer, in code or in any script',
+    0x0B: 'MSF_CAMERA_LOCK (bit 20 / 0x00100000) - camera zone switching disabled (cutscene)',
+    0x0C: 'MSF_PANNING_RESET (bit 19 / 0x00080000) - ResetScreenPanning every frame (ending)',
+    0x0D: 'MSF_FMV_REQUEST (bit 18 / 0x00040000) - main_loop consumes it and plays g_selectedFmvId',
+    0x0E: 'MSF_VOICE_PLAYING (bit 17 / 0x00020000) - voice/SFX line playing; polled as "wait for it"',
+    0x0F: 'MSF_INTENSITY_RAMP (bit 16 / 0x00010000) - ramp g_spriteAnimIntensity up while set (screen flash)',
+    0x10: 'MSF_MENU_ACTIVE (bit 15 / 0x00008000) - menu task re-entry lock',
+    0x11: 'MSF_SCRIPT_ONLY_14 (bit 14 / 0x00004000) - outside the menu-mode ladder; 14 stage-3 event scripts set it',
+    0x12: 'MSF_MENU_MODE_KEY_DEPLETED (bit 13 / 0x00002000) - menu mode 1 - key item used up, "drop it" prompt',
+    0x13: 'MSF_MENU_MODE_ITEMBOX (bit 12 / 0x00001000) - menu mode 2 - item box',
+    0x14: 'MSF_MENU_MODE_ITEM_VIEW (bit 11 / 0x00000800) - menu mode 3 - item viewer / examine',
+    0x15: 'MSF_MENU_MODE_GOT_ITEM (bit 10 / 0x00000400) - menu mode 4 - got item (cmd_got_item)',
+    0x16: 'MSF_MENU_MODE_5 (bit 9  / 0x00000200) - menu mode 5 - the map-item display; set only by scripts',
+    0x17: 'MSF_PICKUP_SCREEN (bit 8  / 0x00000100) - pickup/message screen -> main_menu state 8',
+    0x18: 'MSF_DOOR_TRANSITION (bit 7  / 0x00000080) - door transition in progress',
+    0x19: 'MSF_OBJECT_PUSH (bit 6  / 0x00000040) - object push running; forces player behaviour 0x10',
+    0x1A: 'MSF_CAMERA_REDRAW (bit 5  / 0x00000020) - pending background redisplay, consumed by game_loop',
+    0x1B: 'MSF_LADDER_DOWN (bit 4  / 0x00000010) - ladder/stairs latch: behaviour 0x0B instead of 0x11',
+    0x1C: 'MSF_SCRIPT_ONLY_03 (bit 3  / 0x00000008) - no reader in ported code; 18 room scripts set it',
+    0x1D: 'MSF_CAMERA_DEFER (bit 2  / 0x00000004) - camera switch raises MSF_CAMERA_REDRAW instead of redrawing now',
+    0x1E: 'MSF_MIRROR_PLANE_X (bit 1  / 0x00000002) - mirror plane axis (1 = X, 0 = Z)',
+    0x1F: 'MSF_MIRROR_ENABLE (bit 0  / 0x00000001) - mirror reflection pass enabled',
+    // 0x20+ = g_main_state_flags2
+    0x20: 'main_state2 bit 31 / 0x80000000 - script-set (4 sites)',
+    0x24: 'main_state2 bit 27 / 0x08000000 - script-set (6 sites)',
+    0x26: 'main_state2 bit 25 / 0x02000000 - script-set (2 sites)',
+    0x3C: 'main_state2 bit 3  / 0x00000008 - script-set (16 sites)',
+    0x3D: 'main_state2 bit 2  / 0x00000004 - script-set (14 sites)',
+    0x3E: 'main_state2 bit 1  / 0x00000002 - SCREEN SHAKE enable (boulder tunnels, 64 sites)',
+  },
+
+  6: {
+    0x18: 'message_flags 0x80 - message/menu active (event VM wait gate)',
+  },
+};
+
+// Bank 9 (g_itemUseFlags) ids are item-relative; resolve dynamically.
+function flagConstantName(bank, id) {
+  const tbl = FLAG_CONSTANTS[bank];
+  if (tbl && tbl[id] !== undefined) return tbl[id];
+  if (bank === 9) {
+    if (id === 0x3F) return 'itemUseFlags 0x3F - radio transmission active';
+    if (id >= 0x1B) return 'itemUseFlags - item 0x' + hx(id + 0x1B) + ' usable here';
+  }
+  return null;
+}
+// Tooltip body for the flag-id input: every known constant of the bank, one per
+// line, so hovering the field is enough to pick a value without leaving the
+// editor. Long banks are listed in full - a native title tooltip scrolls.
+function flagTooltipFor(bank) {
+  const tbl = FLAG_CONSTANTS[bank];
+  const head = 'Bank ' + bank + ' - ' + (BANKS[bank] || '?') + '\n'
+             + 'Raw selector byte = the Flg_on/Flg_ck flag id.\n'
+             + 'Accepts 0x hex or decimal.\n';
+  if (bank === 9) {
+    return head + '\nKnown ids:\n'
+         + '  0x3F  radio transmission active\n'
+         + '  >=0x1B  item (id + 0x1B) usable here';
+  }
+  if (!tbl) {
+    return head + '\nNo global constants for this bank: the ids are per-room '
+         + '(door/desk locks, enemy slots, item slots, room ids), so the meaning '
+         + 'comes from the room, not a table.';
+  }
+  const lines = Object.keys(tbl)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map(k => '  ' + hx(k, 2) + '  ' + tbl[k]);
+  return head + '\nKnown flags (' + lines.length + '):\n' + lines.join('\n');
+}
+
+const CMP_MODE = { 0:'==', 1:'>', 2:'>=', 3:'<', 4:'<=', 5:'!=' };
+
+// room_check_actions (0x004b9340) - 18 entries, used by cmd_room_action (0x24)
+// and cmd_got_item (0x2D).
+const ROOM_ACTIONS = {
+  0:'no_room_action', 1:'door_try_enter', 2:'display_msg_room_action', 3:'include_key',
+  4:'set_key_flag', 5:'check_door', 6:'check_door_side', 7:'flag_bank_set',
+  8:'open_itembox', 9:'create_room_event', 10:'room_action_noop10', 11:'room_action_effect',
+  12:'set_stairs_zone', 13:'set_room_event_flag', 14:'check_desk', 15:'pickup_key_event',
+  16:'check_typewriter', 17:'stairs_height_update',
+};
+const RA_ENUM = () => Object.fromEntries(Object.entries(ROOM_ACTIONS)
+  .map(([k, v]) => [k, Number(k) + ' - ' + v]));
+
+// What the three parameter words at entry +2/+4/+6 mean, per handler. Read off
+// each handler's implementation (PlayerAnimations.cpp); a handler absent from
+// this table reads none of the three.
+const RA_PARAMS = {
+  1:   ['door number', null, null],
+  2:   ['message id', 'pause frames (0xFF waits for input)', null],
+  4:   ['0 opens the item view now, else play the reach animation', null, null],
+  5:   ['swing parity, XORed with the approach side', null, null],
+  6:   ['swing parity, XORed with the approach side', null, null],
+  7:   ['flag bank', 'bit index (MSB-first)', 'nonzero sets, 0 clears'],
+  9:   ['event slot (>7 = first free of the 8)', 'EVENT SCRIPT index (RDT+0x68 table)', null],
+  0xC: ['ladder variant, toggled on every hit', 'ladder base X', 'ladder base Z'],
+  0xD: ['0 raises the pickup screen now, else play the interaction animation', null, null],
+  0xE: ['LocksFlags bit for the lock', 'slot holding the model/flag indices', 'desk camera'],
+  0xF: [null, 'item model slot', null],
+  0x10:['scratch - the ribbon inventory slot is written back here', null, null],
+  0x11:['ramp edge: 0 +X, 1 -X, 2 +Z, 3 -Z', 'step length', 'height per step'],
+};
+function raParams(handler, p) {
+  const spec = RA_PARAMS[handler];
+  if (!spec) return p.some(v => v) ? ' params ' + p.join('/') + ' (handler reads none)' : '';
+  const out = [];
+  for (let i = 0; i < 3; i++) if (spec[i]) out.push(spec[i].split(' (')[0] + '=' + p[i]);
+  return out.length ? ' | ' + out.join(', ') : '';
+}
+function raParamFields(F, handler, at0) {
+  const spec = RA_PARAMS[handler] || [];
+  for (let i = 0; i < 3; i++) {
+    F.push({ at: at0 + i * 2, type: 'u16',
+             label: spec[i] ? 'param ' + i + ': ' + spec[i].split(' (')[0]
+                            : 'entry word +' + (2 + i * 2) + ' (unread by this handler)',
+             hint: spec[i] || 'this handler ignores it' });
+  }
+}
+
+const ENTITY_KIND = { 0:'player', 1:'enemy/npc', 2:'room object (omodel)', 3:'item model' };
+
+// Player state-8 SCD behaviours, table 0x004beca0. Names from PlayerAnimations.cpp.
+// The NPC table (0x004c4780) has 11 entries and different meanings - these labels
+// are only accurate when set_entity selected the player.
+const PLAYER_BEHAVIOR = {
+  0:'0 anim playback', 1:'1 remapped anim', 2:'2 turn + walk to target',
+  3:'3 turn + run + stop', 4:'4 walk BACKWARDS to target', 5:'5 walk to target',
+  6:'6 turn in place', 7:'7 pair 2 + per-frame turn', 8:'8 pair 2, no turn/mirror',
+  9:'9 as 8, mirrored, back to state 1',
+};
+
+const SECTION_NAMES = {
+  0x48:'cam_switch_zones', 0x4C:'boundaries', 0x50:'object_models', 0x54:'item_models',
+  0x58:'walk_zones', 0x5C:'footstep_sound_zones', 0x60:'initialization_scd', 0x64:'scd_opcodes',
+  0x68:'scd_opcodes2 (EVENTS)', 0x6C:'player_anim_header', 0x70:'player_anim_base', 0x74:'messages',
+  0x78:'item_icons', 0x7C:'effect_anim_index', 0x80:'effect_anim_data', 0x84:'effect_anim_sprite',
+  0x88:'sound_attribute_table', 0x8C:'vab_header_file', 0x90:'vab_sound_file',
+};
+
+const EVT_TABLE_OFF = 0x68;
+
+// The three script sections. 0x68 is the cutscene VM (its own grammar, decoded
+// by decodeSegment); 0x60 and 0x64 are the ROOM SCD stream, a different opcode
+// set entirely (SCD_CMDS / decodeScdSegment). The mirror setup lives in 0x60.
+const SCRIPT_SECTIONS = [
+  { off: 0x60, key: 'init', label: 'init SCD (0x60) - runs once on room load' },
+  { off: 0x64, key: 'main', label: 'main SCD (0x64) - runs every frame' },
+  { off: 0x68, key: 'evt',  label: 'event scripts (0x68) - the cutscene VM' },
+];
+
+// ===========================================================================
+// Small helpers
+// ===========================================================================
+const hx  = (v, n) => v.toString(16).toUpperCase().padStart(n || 2, '0');
+const hexs = (arr) => Array.from(arr, b => hx(b)).join(' ');
+const $  = (id) => document.getElementById(id);
+
+function u16(a, o) { return a[o] | (a[o + 1] << 8); }
+function i16(a, o) { const v = u16(a, o); return v >= 0x8000 ? v - 0x10000 : v; }
+function u32(a, o) { return (a[o] | (a[o+1] << 8) | (a[o+2] << 16) | (a[o+3] << 24)) >>> 0; }
+function setU16(a, o, v) { a[o] = v & 0xFF; a[o + 1] = (v >> 8) & 0xFF; }
+function setU32(a, o, v) { a[o] = v & 0xFF; a[o+1] = (v>>8)&0xFF; a[o+2] = (v>>16)&0xFF; a[o+3] = (v>>24)&0xFF; }
+
+function parseNum(s) {
+  s = String(s).trim();
+  if (s === '') return null;
+  const neg = s[0] === '-';
+  if (neg) s = s.slice(1);
+  let v;
+  if (/^0x[0-9a-f]+$/i.test(s)) v = parseInt(s.slice(2), 16);
+  else if (/^[0-9]+$/.test(s)) v = parseInt(s, 10);
+  else if (/^[0-9a-f]+$/i.test(s)) v = parseInt(s, 16);
+  else return null;
+  if (!isFinite(v)) return null;
+  return neg ? -v : v;
+}
+
+function parseHexBytes(s) {
+  const t = String(s).trim();
+  if (t === '') return [];
+  const parts = t.split(/[\s,]+/).filter(x => x.length);
+  const out = [];
+  for (const p of parts) {
+    if (!/^[0-9a-f]{1,2}$/i.test(p)) return null;
+    out.push(parseInt(p, 16) & 0xFF);
+  }
+  return out;
+}
+
+// ===========================================================================
+// SCD payload decoding (used by run_scd / exec_scd / the call payload)
+// ===========================================================================
+function scdCmdName(op) { return SCD_CMDS[op] ? SCD_CMDS[op][0] : 'cmd_' + hx(op) + '?'; }
+function scdNoteOf(op) { return (SCD_CMDS[op] && SCD_CMDS[op][2]) || ''; }
+
+// cmd_bit_test (0x00460570) / cmd_bit_op (0x00460650) operands.
+//
+// g_ScdOpcodes points at the OPCODE, so scd_read_u16(0) >> 8 is the byte right
+// after it - the bank. The next word gives bitOffset = (w & 0xE0) >> 3,
+// bitIndex = w & 0x1F and condition/operation = w >> 8. So, per byte:
+//   args[0] = bank, args[1] = offset+bit, args[2] = cond / operation.
+//
+// THE BIT INDEX IS COUNTED FROM THE MSB. cmd_bit_op builds its mask as
+// `0x80000000 >> bitIndex` and cmd_bit_test shifts LEFT by it and tests the
+// sign, so raw index 31 is bit 0 and raw index 0 is bit 31. Reporting the raw
+// index alone is how ROOM1110's mirror enable (`05 05 1f 00`, which sets
+// main_state_flags bit 0) got read as a write to bit 31. Show both.
+const BITOPS = { 0:'set', 1:'clear', 2:'toggle' };
+function bitDesc(args, op) {
+  if (args.length < 3) return '';
+  const bank = args[0];
+  const raw = args[1] & 0x1F;
+  const mask = (0x80000000 >>> raw) >>> 0;
+  const tail = op === 0x05
+    ? (BITOPS[args[2]] || 'op=' + hx(args[2]))
+    : 'cond=' + hx(args[2]) + (args[2] === 0 ? ' (true when set)' : args[2] === 1 ? ' (true when clear)' : '');
+  // The whole selector byte is the Flg_on/Flg_ck flag id - the same number
+  // the *_FLAG_* constants use.
+  const cname = flagConstantName(bank, args[1] & 0xFF);
+  // Where the bit actually lands in memory. bitOffset is a DWORD offset and the
+  // bit index counts from the DWORD's MSB, so in little-endian the first 8 bits
+  // (msbidx 0-7) live in the LAST byte of the dword: byte index =
+  // off + 3 - msbidx/8, bit within that byte = 7 - msbidx%8. E.g. bank 1
+  // flag 0x40 (off=8, msbidx 0) is byte[11] bit 7 - matching the debugger view
+  // where flags 0x40+0x41 show up as scenarioFlags2[11] = 0xC0.
+  const byteIdx = ((args[1] & 0xE0) >> 3) + (3 - (raw >> 3));
+  const bitInByte = 7 - (raw & 7);
+  const byteMask = 0x80 >> (raw & 7);
+  return 'bank=' + bank + '(' + (BANKS[bank] || '?') + ') flag=0x' + hx(args[1] & 0xFF, 2) +
+         ' off=' + ((args[1] & 0xE0) >> 3) +
+         ' bit=' + (31 - raw) + '(msbidx ' + raw + ') mask=0x' + mask.toString(16).padStart(8, '0') +
+         ' mem=byte[' + byteIdx + '] bit' + bitInByte + '(0x' + byteMask.toString(16) + ')' +
+         ' ' + tail +
+         (cname ? ' | ' + cname : '');
+}
+
+// cmd_mirror_set (0x004610b0) - the room mirror (planar reflection) setup.
+// Writes g_main_state_flags bits 0-1 from args[0] (bit 0 = enable the mirror
+// pass, bit 1 = plane axis), then three u16: the mirror's extent along the axis
+// ACROSS the plane, and the plane coordinate itself.
+//
+// A plane-X room writes 0x02 here - the axis only - and enables the pass with a
+// SEPARATE bit_op (bank 5, msb index 31 = bit 0) on the next line, so bit0=0 on
+// this command does NOT mean the mirror is off. ROOM1110/40B0/6110 do exactly
+// that; ROOM1120/1130 set both bits at once with 0x01.
+function mirrorDesc(args) {
+  if (args.length < 7) return '';
+  const axis = (args[0] >> 1) & 1 ? 'X' : 'Z';
+  return 'MIRROR bit0=' + (args[0] & 1) + ' axis=' + axis +
+         ' extent=' + u16(args, 1) + '..' + u16(args, 3) +
+         ' plane=' + axis + '=' + u16(args, 5);
+}
+
+// Decode one SCD command starting at `off`. Returns {op, name, len, args, note}.
+function scdOne(bytes, off) {
+  const op = bytes[off];
+  const ent = SCD_CMDS[op];
+  let w = ent ? ent[1] : -1;
+  const vlen = ent && SCD_VLEN_TOTAL[op];
+  if (vlen) w = vlen(bytes.slice(off + 1)) - 1;   // total -> bytes after the opcode
+  if (w < 0) return { op, name: scdCmdName(op), len: bytes.length - off, args: bytes.slice(off + 1), bad: true,
+                      note: 'unknown opcode width - the real interpreter would desync here' };
+  const len = Math.min(1 + w, bytes.length - off);
+  let note = scdNoteOf(op) || scdNoteFor(op, bytes.slice(off + 1, off + len));
+  if (COND_OPS.has(op)) {
+    note = 'COND - returning 0 aborts the block' + (note ? ' | ' + note : '');
+  }
+  return { op, name: scdCmdName(op), len, args: bytes.slice(off + 1, off + len),
+           cond: COND_OPS.has(op), note };
+}
+
+// Decode a payload into one record per command. scdListText() keeps the old
+// single-line form for the collapsed header; buildEditor renders these rows.
+function scdListRows(bytes, from, baseOff) {
+  const rows = [];
+  let o = from || 0;
+  let guard = 0;
+  while (o < bytes.length && guard++ < 200) {
+    const c = scdOne(bytes, o);
+    rows.push({ off: (baseOff || 0) + o, len: c.len, op: c.op,
+                hex: hexs(bytes.slice(o, o + Math.max(c.len, 1))),
+                name: c.name, note: c.note || '', cond: !!c.cond, bad: !!c.bad });
+    if (c.bad || c.len <= 0) break;
+    o += c.len;
+  }
+  return rows;
+}
+
+function scdListText(bytes, from) {
+  const out = [];
+  let o = from || 0;
+  let guard = 0;
+  while (o < bytes.length && guard++ < 200) {
+    const c = scdOne(bytes, o);
+    let s = c.name;
+    if (c.args.length) s += '[' + hexs(c.args) + ']';
+    if (c.note) s += ' {' + c.note + '}';
+    out.push(s);
+    if (c.bad || c.len <= 0) { out.push('(unknown width - stream stops here)'); break; }
+    o += c.len;
+  }
+  return out.join('; ');
+}
+
+// Per-operand decoders for the SCD commands whose bytes carry more meaning than
+// a hex dump shows. Layouts from docs/SCD_SCRIPT_SYSTEM.md §5 / CmdFunctions.cpp.
+const SND_POS_SRC = { 0:'explicit (x,z)', 1:'player', 2:'enemy/npc', 3:'play_sfx' };
+// BioCard state block. Opcodes 0x06/0x08 index BYTES from g_stageId (+0x200);
+// opcodes 0x07/0x31 index SHORTS from g_fading_state (+0x214).
+const STATE_BYTES = {
+  0:'stageId', 1:'roomId', 2:'roomCameraId', 3:'attractMode_RoomCameraId', 4:'cutId',
+  5:'menu_choice_id', 6:'selectedItemId', 7:'totalHeldItems', 8:'specialRoomLightR',
+  9:'characterModelId', 10:'scdLastEnemyFlags', 11:'bulletEffectId',
+  12:'pickupQtyA', 13:'pickupQtyB', 14:'pickupQtyC', 16:'fwdPosActionId',
+  17:'entPosActionId', 18:'usedItemId', 19:'pickedItemId',
+};
+const STATE_WORDS = {
+  0:'fadingState', 1:'specialRoomLightState', 2:'specialRoomLightDelta', 3:'randSeed',
+  4:'countdownTimer', 5:'playerHealthCopy', 6:'playerDpadHeld', 7:'playerDpadPressed',
+};
+const stByte = n => STATE_BYTES[n] || ('state byte ' + n);
+const stWord = n => STATE_WORDS[n] || ('state word ' + n);
+const enumFrom = t => Object.fromEntries(Object.entries(t).map(([k,v]) => [k, k + ' - ' + v]));
+
+// ---------------------------------------------------------------------------
+// Item ids.
+//
+// Names come from g_ItemNamePointers (0x004bf0a0, indexed by itemId - 1; see
+// src/game/MenuData.cpp), which is what the inventory actually prints. The ids
+// that have no name string there - oil, the pick axe and the six maps - are
+// filled in from the ITEM_* constants in src/game/Types.h. Parentheses
+// disambiguate the ids that share one string (the three bazookas, the six
+// mixed herbs, and the keys whose printed name differs from the constant).
+// 0x5F-0x6E are the sixteen documents, in FILE order (their "read" bit is
+// ROOM_FLAG_FILE_BASE + itemId - 0x5F); 0x54-0x5E are unused.
+// ---------------------------------------------------------------------------
+const ITEM_NAMES = {
+  0x00: 'nothing', 0x01: 'COMBAT KNIFE', 0x02: 'BERETTA', 0x03: 'SHOTGUN', 0x04: 'COLT PYTHON (dum-dum)',
+  0x05: 'COLT PYTHON (magnum)', 0x06: 'FLAMETHROWER', 0x07: 'BAZOOKA (explosive)',
+  0x08: 'BAZOOKA (acid)', 0x09: 'BAZOOKA (flame)', 0x0A: 'R. LAUNCHER', 0x0B: 'CLIP',
+  0x0C: 'SHELLS', 0x0D: 'DUMDUM ROUNDS', 0x0E: 'MAGNUM ROUNDS', 0x0F: 'FUEL',
+  0x10: 'EXPLOSIVE R.', 0x11: 'ACID ROUNDS', 0x12: 'FLAME ROUNDS', 0x13: 'EMPTY BOTTLE',
+  0x14: 'WATER', 0x15: 'UMB No.2', 0x16: 'UMB No.4', 0x17: 'UMB No.7', 0x18: 'UMB No.13',
+  0x19: 'Yellow-6', 0x1A: 'NP-003', 0x1B: 'V-JOLT', 0x1C: 'BROKEN SHOTGUN', 0x1D: 'SQUARE CRANK',
+  0x1E: 'HEX. CRANK', 0x1F: 'EMBLEM', 0x20: 'GOLD EMBLEM', 0x21: 'BLUE JEWEL',
+  0x22: 'RED JEWEL', 0x23: 'MUSIC NOTES', 0x24: 'WOLF MEDAL', 0x25: 'EAGLE MEDAL',
+  0x26: 'HERBICIDE (chemical)', 0x27: 'BATTERY', 0x28: 'MO DISK', 0x29: 'WIND CREST',
+  0x2A: 'FLARE', 0x2B: 'SLIDES', 0x2C: 'MOON CREST', 0x2D: 'STAR CREST', 0x2E: 'SUN CREST',
+  0x2F: 'INK RIBBON', 0x30: 'LIGHTER', 0x31: 'LOCKPICK', 0x32: 'OIL (no name string)',
+  0x33: 'SWORD KEY', 0x34: 'ARMOR KEY', 0x35: 'SHIELD KEY', 0x36: 'HELMET KEY',
+  0x37: 'MASTER KEY (lab key A)', 0x38: 'CLOSET KEY (special key)', 0x39: '002 KEY (dormitory A)',
+  0x3A: '003 KEY (dormitory B)', 0x3B: 'C. ROOM KEY', 0x3C: 'P. ROOM KEY (lab key B)',
+  0x3D: 'DESK KEY', 0x3E: 'BLANK BOOK (red book)', 0x3F: 'DOOM BOOK 2', 0x40: 'DOOM BOOK 1',
+  0x41: 'F.-AID SPRAY', 0x42: 'SERUM', 0x43: 'RED HERB', 0x44: 'GREEN HERB', 0x45: 'BLUE HERB',
+  0x46: 'MIXED HERBS (blue+red)', 0x47: 'MIXED HERBS (2 green)', 0x48: 'MIXED HERBS (green+blue)',
+  0x49: 'MIXED HERBS (green+red+blue)', 0x4A: 'MIXED HERBS (3 green)', 0x4B: 'MIXED HERBS (2 green+red)',
+  0x4C: 'PICK AXE (no name string)', 0x4D: 'COM. RADIO', 0x4E: 'MAP - mansion 1F',
+  0x4F: 'MAP - mansion 2F', 0x50: 'MAP - courtyard', 0x51: 'MAP - underground',
+  0x52: 'MAP - guardhouse', 0x53: 'MAP - laboratory', 0x54: 'unused id 0x54',
+  0x55: 'unused id 0x55', 0x56: 'unused id 0x56', 0x57: 'unused id 0x57', 0x58: 'unused id 0x58',
+  0x59: 'unused id 0x59', 0x5A: 'unused id 0x5A', 0x5B: 'unused id 0x5B', 0x5C: 'unused id 0x5C',
+  0x5D: 'unused id 0x5D', 0x5E: 'unused id 0x5E', 0x5F: 'FILE 00 - RESEARCHER\'S WILL',
+  0x60: 'FILE 01 - RESEARCHER\'S WILL', 0x61: 'FILE 02 - KEEPER\'S DIARY', 0x62: 'FILE 03 - ORDERS',
+  0x63: 'FILE 04 - PASS NUMBER', 0x64: 'FILE 05 - PLANT42 REPORT', 0x65: 'FILE 06 - FAX',
+  0x66: 'FILE 07 - SCRAPBOOK', 0x67: 'FILE 08 - SECURITY SYSTEM', 0x68: 'FILE 09 - RESEARCHER\'S LETTER',
+  0x69: 'FILE 0A - "V-JOLT" REPORT', 0x6A: 'FILE 0B - BARRY\'S PICTURE', 0x6B: 'FILE 0C - PASS CODE01',
+  0x6C: 'FILE 0D - PASS CODE02', 0x6D: 'FILE 0E - PASS CODE03', 0x6E: 'FILE 0F - BOTANY BOOK',
+  0x6F: 'INGRAM (PC bonus)', 0x70: 'MINIMI (PC bonus)',
+};
+// "NAME (0xNN)" for a note line, or a bare id when nothing claims it.
+function itemLabel(id) {
+  return ITEM_NAMES[id] ? ITEM_NAMES[id] + ' (0x' + hx(id) + ')' : 'item 0x' + hx(id);
+}
+const ITEM_ENUM = Object.fromEntries(Object.entries(ITEM_NAMES)
+  .map(([k, v]) => [k, '0x' + hx(Number(k)) + ' - ' + v]));
+
+// Sub-commands of opcode 0x33 (the player twin of 0x28).
+const PLAYER_PROP_SUB = {
+  0:'unequip weapon', 1:'hit: isBeingAttackedFlag + reset anim', 3:'flags SET/OR/XOR',
+  4:'action_behavior=1, action_state=6', 5:'directionAngle', 6:'clear unk_8c',
+  7:'reset to idle', 8:'healthStatusFlags SET/OR/XOR', 9:'toggle joint flags',
+  10:'set/clear unk_e0 bit 0x40',
+};
+const ENEMY_PROP_SUB = {
+  0:'behavior_flags', 1:'state=2 + health + hit_state', 2:'action_behavior',
+  3:'status_flags SET/OR/XOR', 5:'yaw', 6:'blend_counter=0', 8:'state=9',
+  9:'toggle joint flags', 10:'action_state',
+};
+function scdNoteFor(op, args) {
+  const cmp = (a, o) => CMP_MODE[a[o]] !== undefined ? CMP_MODE[a[o]] : 'mode ' + a[o];
+  switch (op) {
+    case 0x04:
+    case 0x05: return bitDesc(args, op);
+    case 0x06: return args.length >= 3
+      ? stByte(args[0]) + ' ' + cmp(args, 1) + ' ' + args[2] : '';
+    case 0x07: return args.length >= 4
+      ? stWord(args[1]) + ' ' + cmp(args, 2) + ' ' + u16(args, 3) : '';
+    case 0x08: return stByte(args[0]) + ' = ' + args[1];
+    case 0x09: return 'cut to camera ' + args[0] + ' with lock';
+    case 0x0b: return 'message ' + args[0] + ', pause ' + u16(args, 1) + ' frames';
+    case 0x0f: return mirrorDesc(args);
+    case 0x0C: return args.length >= 25
+      ? 'door at (' + u16(args, 1) + ',' + u16(args, 3) + ',' + u16(args, 5) + ')' +
+        ' rot ' + u16(args, 7) + ' -> room ' + args[14] +
+        ' at (' + u16(args, 15) + ',' + u16(args, 17) + ',' + u16(args, 19) + ')' +
+        (args[23] ? ' LOCKED (key ' + args[23] + ')' : ' unlocked') : '';
+    case 0x0D: return args.length >= 17
+      ? 'room action ' + args[0] + ' = ' +
+        (ROOM_ACTIONS[args[9]] || hx(args[9])) + ' flags=' + hx(args[10]) +
+        ' zone (' + u16(args, 1) + ',' + u16(args, 3) + ') ' +
+        u16(args, 5) + 'x' + u16(args, 7) +
+        raParams(args[9], [u16(args, 11), u16(args, 13), u16(args, 15)]) : '';
+    case 0x12: return args.length >= 9
+      ? 'room action ' + args[0] + ' = ' + (ROOM_ACTIONS[args[1]] || hx(args[1])) +
+        ' flags=' + hx(args[2]) + ' (zone record kept)' +
+        raParams(args[1], [u16(args, 3), u16(args, 5), u16(args, 7)]) : '';
+    case 0x13: return 'room action ' + args[0] + ' = ' +
+      (ROOM_ACTIONS[args[1]] || hx(args[1])) + ' flags=' + hx(args[2]) +
+      (args[1] === 0 || !(args[2] & 7) ? ' (disarm)' : ' (arm)');
+    case 0x14: return args.length >= 3 ? 'create slot ' + args[1] + ' <- script ' + args[2] : '';
+    case 0x17: {
+      const pt = args[3];
+      return pt === undefined ? '' :
+        'snd bank ' + args[0] + ' id ' + args[1] + ' vol ' + args[2] +
+        ' src=' + (SND_POS_SRC[pt] || pt) +
+        (pt === 2 ? ' enemy/NPC ' + args[4] : '') +
+        (pt > 3 ? ' (position operand not consumed)' : '');
+    }
+    // 0x18 item_model_set: the item id is args[9] (g_ScdOpcodes[10]) and the
+    // model it draws is args[11] (the g_item_model_table / RDT item_models
+    // index) - the two are independent, so both are worth showing.
+    case 0x18: return args.length >= 22
+      ? itemLabel(args[9]) + ' -> model ' + args[11] +
+        ', action entry ' + (args[0] & 0x7F) +
+        (args[0] & 0x80 ? ' (alt rotation)' : '') +
+        ' at (' + i16(args, 13) + ',' + i16(args, 15) + ',' + i16(args, 17) + ')' +
+        ' roomItems bit 0x' + hx(args[21]) : '';
+    case 0x1b: {
+      if (args.length < 21) return '';
+      const guard = args[2];
+      return 'enemy/NPC type ' + args[0] + ' bhvFlags=' + hx(args[1]) +
+             ' guard=' + (guard === 0xFF ? 'none' : 'EnemiesFlags bit ' + guard) +
+             (args[3] ? ' force-init' : '') +
+             ' yaw=' + i16(args, 7) + ' pos=(' + i16(args, 11) + ',' + i16(args, 13) + ',' +
+             i16(args, 15) + ') slot=' + (args[17] & 0x0F) + ' anim=' + hx(args[18]) +
+             ' frame=' + hx(args[19]);
+    }
+    case 0x1c: return args.length >= 4
+      ? 'special room light delta=' + i16(args, 1) + ' rgbMask=0x' + hx(u16(args, 3), 4) : '';
+    case 0x22: return args.length >= 3
+      ? 'ammo family ' + args[0] + ' count ' + cmp(args, 1) + ' ' + args[2] : '';
+    case 0x24: return 'room_action[' + (ROOM_ACTIONS[args[1]] || hx(args[1])) +
+                      '](entry ' + args[0] + ')';
+    case 0x25: return args.length >= 3
+      ? (args[2] === 0 ? 'show sprite ' + args[1] : 'hide sprite ' + args[1]) : '';
+    case 0x28: return ENEMY_PROP_SUB[args[2]] !== undefined && args.length >= 3
+      ? 'enemy/NPC ' + args[1] + ': ' + ENEMY_PROP_SUB[args[2]] +
+        ((SCD_VLEN_TOTAL[0x28](args) === 6 || args[2] === 1)
+          ? ' param=' + u16(args, 3) : '')
+      : 'enemy prop subCmd ' + args[2] + ' (never advances - VM would hang)';
+    case 0x29: return 'play FMV ' + args[0];
+    case 0x2a:
+    case 0x3d: return args.length >= 6
+      ? 'effect type ' + args[0] + ' parent ' + args[1] + ' (' +
+        (args[2] === 0 ? 'identity' : args[2] === 1 ? 'player'
+         : args[2] < 0x80 ? 'effect pool' : 'omodel ' + (args[2] & 0x7F)) + ')' +
+        ' at (' + i16(args, 3) + ',' + i16(args, 5) + ',' + i16(args, 7) + ')' +
+        ' flags=0x' + hx(u16(args, 9), 4) : '';
+    case 0x30: return args.length >= 4
+      ? 'boundary ' + args[1] + ' of list ' + args[0] +
+        (args[2] ? ', flagMode ' + args[2] + ' rewrites bits 0x0F00' : '') : '';
+    case 0x31: return stWord(args[0]) + ' = ' + u16(args, 1);
+    case 0x33: {
+      const sc = args[0];
+      return 'player: ' + (PLAYER_PROP_SUB[sc] || ('subCmd ' + sc + ' (never advances - VM would hang)'));
+    }
+    case 0x35: return (args[0] === 0 ? 'omodel ' : 'item model ') + args[1] + ' byte[0] = ' + args[2];
+    case 0x36: return args.length >= 3
+      ? 'omodel ' + args[0] + ' billboard handle ' + cmp(args, 1) + ' ' + args[2] : '';
+    case 0x37: return 'roomBgmState[stage ' + args[0] + '][room ' + args[1] + '] = ' + args[2];
+    case 0x38: return args.length >= 3
+      ? 'dpad mask 0x' + hx(u16(args, 1), 4) + (args[0] ? ' (inverted)' : '') : '';
+    case 0x3c: return args.length >= 6
+      ? 'dist to ' + ({0:'enemy/NPC ',1:'omodel ',2:'item model '}[args[1] & 0xFF] || '') +
+        (args[1] >> 8) + ' <= ' + u16(args, 3) : '';
+    case 0x3f: return args.length >= 6
+      ? 'player direction in [' + u16(args, 1) + '..' + u16(args, 3) + ']' : '';
+    case 0x41: return args.length >= 3
+      ? (args[0] === 0 ? 'player' : 'entity ' + args[0]) + '.posY = ' + u16(args, 1) : '';
+    case 0x44: return 'kill event slot ' + args[0];
+    case 0x49: return args[0] === 0xFF ? 'clear the pending hide mask'
+                                     : 'hide room sprite id ' + (args[0] & 0x1F);
+    case 0x4a: return 'restore BGM channels saved by 0x4B (unless targetBgmState == 0xFF)';
+    case 0x4b: return 'stop all four sound banks, save live mask (unless targetBgmState == 0xFF)';
+    case 0x4c: {
+      const f = stByte(args[2]), sl = 'room action ' + args[1] + ' record byte 9';
+      return [sl + ' -> ' + f, f + ' -> ' + sl,
+              'inventory quantity -> ' + f + ' and ' + sl][args[0]] || 'mode ' + args[0];
+    }
+  }
+  return '';
+}
+
+// ===========================================================================
+// Item model
+//
+// A segment is decoded into items that TILE it with no gaps, so re-serialising
+// is lossless. Variable-width opcodes (0x06/0x07 in state 0, and 0xFC) own their
+// whole span including the payload the VM later runs from the call stack, so a
+// payload edit can never desync the width byte.
+// ===========================================================================
+function mkItem(kind, op, state, bytes, name, note) {
+  return { kind, op, state, bytes: Array.from(bytes), name, note, edited: false, open: false };
+}
+
+function decodeSegment(buf, start, end, initState) {
+  const items = [];
+  let off = start, state = initState || 0, guard = 0;
+
+  const take = (n) => buf.slice(off, Math.min(off + n, end));
+
+  while (off < end && guard++ < 20000) {
+    const op = buf[off];
+
+    // --- control flow first, exactly as the dispatcher does
+    if (CTRL[op]) {
+      const c = CTRL[op];
+      let len = c.len;
+      if (op === 0xFC) len = buf[off + 1];
+      if (!len || len < 1) len = 1;
+      if (off + len > end) len = end - off;
+      const b = take(len);
+      let note = c.note;
+      if (op === 0xF8 || op === 0xFA) {
+        if (len >= 4) note = 'counter = ' + i16(b, 2);
+      } else if (op === 0xFC) {
+        note = 'jump +' + hx(len) + ', payload runs later via 0xFD';
+        if (len > 2) note += ' -> ' + scdListText(b.slice(2), 0);
+      }
+      const it = mkItem('ctrl', op, state, b, c.name, note);
+      items.push(it);
+      off += len;
+      if (op === 0xFF) break;   // slot deactivates; trailing bytes become raw data
+      continue;
+    }
+
+    // --- state dispatch
+    if (state === 3) {
+      const b = take(2);
+      items.push(mkItem('op', op, 3, b, 's3_behavior', 'action_behavior = ' + hx(op)));
+      off += 2;
+      continue;
+    }
+
+    const table = state === 0 ? S0 : state === 1 ? S1 : S2;
+    const spec = table[op];
+    if (!spec) {
+      // The VM has no case for this - it would fall out and the slot stops
+      // advancing. Everything from here is dumped raw rather than guessed at.
+      items.push(mkItem('data', -1, state, buf.slice(off, end), 'raw',
+        'no case for op ' + hx(op) + ' in state ' + state + ' - VM would stall here'));
+      off = end;
+      break;
+    }
+
+    let len = spec.len;
+    let note = spec.note || '';
+
+    if (state === 0 && (op === 0x06 || op === 0x07)) {
+      len = buf[off + 1];
+      if (!len || len < 2) { len = Math.max(2, len | 0); }
+      if (off + len > end) len = end - off;
+      const b = take(len);
+      if (op === 0x06) {
+        const blk = len > 3 ? u16(b, 2) : 0;
+        note = 'width=' + hx(len) + ' block=' + hx(blk, 4) + ' -> ' + scdListText(b.slice(4), 0);
+      } else {
+        note = 'width=' + hx(len) + ' -> ' + (len > 2 ? scdListText(b.slice(2), 0) : '(empty)');
+      }
+      items.push(mkItem('op', op, 0, b, spec.name, note));
+      off += len;
+      continue;
+    }
+
+    if (state === 1 && op === 0x81) {
+      len = (buf[off + 1] & 0x0F) ? 10 : 2;
+    }
+
+    if (off + len > end) len = end - off;
+    const b = take(len);
+    note = noteFor(state, op, b) || note;
+    items.push(mkItem('op', op, state, b, spec.name, note));
+
+    // state transitions
+    if (state === 0) {
+      if (op === 0x01) state = 1;
+      else if (op === 0x02 || op === 0x03) state = 2;
+    } else if (state === 1 && (op === 0x80 || op === 0x8B)) state = 0;
+    else if (state === 2 && op === 0x01) state = 0;
+
+    off += len;
+  }
+
+  if (off < end) {
+    items.push(mkItem('data', -1, -1, buf.slice(off, end), 'raw', 'trailing bytes'));
+  }
+  return items;
+}
+
+function noteFor(state, op, b) {
+  if (state === 0) {
+    if (op === 0x04) return (ENTITY_KIND[b[1]] || '?') + ' idx ' + hx(b[2]);
+    if (op === 0x05) return 'slot ' + hx(b[1]) + ' <- script ' + b[2];
+    if (op === 0x08) return 're-init this slot from script ' + b[1];
+    if (op === 0x09) return 'deactivate slot ' + hx(b[1]);
+  }
+  if (state === 1) {
+    if (op === 0x81) {
+      const f = b[1];
+      return 'lookAtFlags=' + hx(f) + ' ' +
+        (f === 0x93 ? '(target mode)' : (f & 0xF) ? '(position mode)' : '(off)');
+    }
+    // 0x83: behaviour @+1 (a WORD store at +0x86, so action_state is always 0),
+    // target c6 @+2, c8 @+4, completion flag @+6. scd_timer is forced to 0x28.
+    if (op === 0x83) return 'beh=' + hx(b[1]) + ' target=(' + u16(b,2) + ',' + u16(b,4) +
+                            ') flag=' + hx(b[6]) + ' timer=0x28';
+    // 0x84: animationId @+1. scd_anim_param is the LOW byte of the word at +2,
+    // and the HIGH byte feeds scd_entity_flags as (word >> 6) & 0x3FC.
+    if (op === 0x84) {
+      const w = u16(b, 2);
+      return 'beh=1 anim=' + hx(b[1]) + ' flag=' + hx(w & 0xFF) +
+             ' entity_flags=' + hx((w >> 6) & 0x3FC, 4);
+    }
+    // 0x85: behaviour @+1, animation @+2, completion flag @+3.
+    if (op === 0x85) return 'beh=' + hx(b[1]) + ' anim=' + hx(b[2]) + ' flag=' + hx(b[3]);
+    if (op === 0x87) return ['OR','SET','XOR'][b[1]] ? (['OR','SET','XOR'][b[1]] + ' ' + hx(u16(b,2),4)) : 'mode ' + b[1] + ' (no-op)';
+    if (op === 0x88) return 'scd_timer = ' + u16(b, 2);
+    if (op === 0x89 || op === 0x8A) return 'frame ' + hx(b[1]);
+  }
+  if (state === 2) {
+    if (op === 0x05) return 'speed = ' + s8(b[1]) + ', ' + s8(b[2]) + ', ' + s8(b[3]);
+    if (op === 0x06) return 'step_x=' + s8(b[1]) + ' step_z=' + s8(b[2]) + ' state=' + s8(b[3]);
+    if (op === 0x07) return 'pos = ' + i16(b,2) + ', ' + i16(b,4) + ', ' + i16(b,6);
+    if (op === 0x08) return 'entity[0x84 + ' + hx(b[1]) + '] = ' + hx(b[2]);
+    if (op === 0x09) return 'hit_state = ' + hx(b[1]);
+    if (op === 0x0A) {
+      const sel = ['pos.x','pos.y','pos.z','health','unk_c6','unk_c8'][b[1]] || ('sel ' + b[1] + ' (skipped)');
+      return sel + ' = ' + u16(b, 2);
+    }
+    if (op === 0x0B) return 'rot = ' + u16(b,2) + ', ' + u16(b,4) + ', ' + u16(b,6);
+  }
+  return '';
+}
+
+function s8(v) { return v >= 0x80 ? v - 0x100 : v; }
+
+// ===========================================================================
+// Field specs. `at` is a byte offset inside the item.
+// ===========================================================================
+// Named operands for the ROOM SCD opcodes (kind 'scd'). Only the ones worth a
+// labelled control are listed; everything else falls back to the raw hex box,
+// which is always present.
+const BIT_COND = { 0: '0 - true when the bit is SET', 1: '1 - true when the bit is CLEAR' };
+const BIT_OP   = { 0: '0 - set', 1: '1 - clear', 2: '2 - toggle' };
+const MIRROR_FLAGS = {
+  0: '0 - both bits clear',
+  1: '1 - enabled, plane Z',
+  2: '2 - plane X, NOT yet enabled (a following bit_op sets bit 0)',
+  3: '3 - enabled, plane X',
+};
+
+const SCA_PARENT = {
+  0xFF: '0xFF - none', 0xFE: '0xFE - player',
+};
+// cmd_item_model_set (0x18): anything but 0xFF/0xFE indexes g_omodel_table,
+// i.e. the item hangs off one of the ROOM'S OBJECT MODELS (RDT+0x50 - a desk,
+// a drawer, the item box lid) and rides its matrix. Note there is no 0x80
+// split here, unlike cmd_omodel_set: every non-0xFF/0xFE value is an omodel.
+const SCA_PARENT_OMODEL = Object.assign({
+  0x00: 'other - room object (omodel) slot',
+}, SCA_PARENT);
+// cmd_omodel_set (0x1F): < 0x80 omodel slot, >= 0x80 g_EnemiesList[v & 0x7F].
+const SCA_PARENT_ENEMY = Object.assign({
+  0x00: '0x00..0x7F - room object (omodel) slot',
+  0x80: '0x80..0xFD - enemy/NPC',
+}, SCA_PARENT);
+const EFFECT_PARENT = { 0: '0 - identity matrix', 1: '1 - player matrix' };
+
+// `ib` is the whole instruction (opcode at 0), so ib[n + 1] is args[n]. Only
+// the room action commands need it, to label their parameter words from the
+// handler byte sitting in the record.
+function scdFieldsFor(op, ib) {
+  const F = [];
+  ib = ib || [];
+  if (op === 0x04 || op === 0x05) {
+    F.push({ at: 0, type: 'u8', label: 'flag bank',
+             enum: Object.fromEntries(BANKS.map((n, i) => [i, i + ' - ' + n])) });
+    F.push({ at: 1, type: 'flagid', label: 'flag id (selector byte)',
+             hint: 'the raw Flg_on/Flg_ck flag id: dword = id >> 5, '
+                 + 'mask = 0x80000000 >> (id & 0x1F). Type any value (0x hex or '
+                 + 'decimal); hover the field for this bank\'s known flags.' });
+    F.push({ at: 1, type: 'bits', mask: 0x1F, shift: 0, label: 'bit in dword (from MSB)',
+             hint: 'mask = 0x80000000 >> index within the dword; the byte offset field '
+                 + 'picks the dword. Constants count the same way across the whole bank.' });
+    F.push({ at: 1, type: 'bits', mask: 0xE0, shift: 3, label: 'dword (byte offset / 4)',
+             hint: 'selects which 32-bit word of the bank the bit lives in' });
+    F.push({ at: 2, type: 'u8', label: op === 0x04 ? 'condition' : 'operation',
+             enum: op === 0x04 ? BIT_COND : BIT_OP });
+    return F;
+  }
+  if (op === 0x0F) {
+    F.push({ at: 0, type: 'u8', label: 'mirror flags (g_main_state_flags bits 0-1)',
+             enum: MIRROR_FLAGS,
+             hint: 'bit 0 enables the reflection pass, bit 1 picks the plane axis' });
+    F.push({ at: 1, type: 'u16', label: 'extent min (g_mirrorExtentMin)' });
+    F.push({ at: 3, type: 'u16', label: 'extent max (g_mirrorExtentMax)' });
+    F.push({ at: 5, type: 'u16', label: 'plane coordinate (g_mirrorPlaneCoord)' });
+    return F;
+  }
+  // Word-compare tests share the [.. ][mode, cmpVal] tail.
+  const cmpFields = (modeAt, valAt) => {
+    F.push({ at: modeAt, type: 'u8', label: 'compare mode',
+             enum: Object.fromEntries(Object.entries(CMP_MODE).map(([k, v]) => [k, k + ' ' + v])) });
+    F.push({ at: valAt, type: 'u8', label: 'compare value' });
+  };
+  switch (op) {
+    case 0x01:
+      F.push({ at: 0, type: 'u8', label: 'skip length (bytes after this field)',
+               hint: 'resume address = cmd_if + 2 + skip; the if body runs to there' });
+      break;
+    case 0x02:
+      F.push({ at: 0, type: 'u8', label: 'jump length (bytes after this field)',
+               hint: 'else pops the branch stack and jumps forward by this much' });
+      break;
+    case 0x06:
+      F.push({ at: 0, type: 'u8', label: 'state byte', enum: enumFrom(STATE_BYTES),
+               hint: 'byte offset from g_stageId (BioCard +0x200); the index is unbounded' });
+      cmpFields(1, 2);
+      break;
+    case 0x07:
+      F.push({ at: 1, type: 'u8', label: 'state word', enum: enumFrom(STATE_WORDS),
+               hint: 'short index from g_fading_state (BioCard +0x214); 214 of 221 sampled uses read randSeed' });
+      cmpFields(2, 3);
+      break;
+    case 0x08:
+      F.push({ at: 0, type: 'u8', label: 'state byte', enum: enumFrom(STATE_BYTES),
+               hint: 'unbounded - ROOM1130 writes index 82, which lands in scenarioFlags2[30]' });
+      F.push({ at: 1, type: 'u8', label: 'value' });
+      break;
+    case 0x09:
+      F.push({ at: 0, type: 'u8', label: 'camera id' });
+      break;
+    case 0x0B:
+      F.push({ at: 0, type: 'u8', label: 'message id',
+               hint: 'RDT-local table (RDT+0x74); ids with bit 6 set use the global table' });
+      F.push({ at: 1, type: 'u16', label: 'pause frames',
+               hint: 'a full WORD - reading it as a byte is how this one gets misedited' });
+      break;
+    case 0x0C: {
+      // 24-byte door record starting at stream +2 (= args[1]); layout from
+      // docs/SCD_COMMAND_OPCODES.md (record offset = args offset - 1).
+      F.push({ at: 0, type: 'u8', label: 'room action slot (x0C each in g_RoomActionTable)' });
+      F.push({ at: 1, type: 'u16', label: 'door pos X' });
+      F.push({ at: 3, type: 'u16', label: 'door pos Y' });
+      F.push({ at: 5, type: 'u16', label: 'door pos Z' });
+      F.push({ at: 7, type: 'u16', label: 'door rotation' });
+      F.push({ at: 9, type: 'u8', label: 'door-open id',
+               hint: 'door opening cutscene id' });
+      F.push({ at: 11, type: 'u8', label: 'latch type' });
+      F.push({ at: 12, type: 'u8', label: 'door type' });
+      F.push({ at: 14, type: 'u8', label: 'next room',
+               hint: 'room the door leads to (0xFF-ish = none/locked?)' });
+      F.push({ at: 15, type: 'u16', label: 'next room pos X' });
+      F.push({ at: 17, type: 'u16', label: 'next room pos Y' });
+      F.push({ at: 19, type: 'u16', label: 'next room pos Z' });
+      F.push({ at: 21, type: 'u16', label: 'next room rotation' });
+      F.push({ at: 23, type: 'u8', label: 'key item id (0 = none)',
+               hint: 'door_try_enter requires this item and consumes it via pickup_key_event' });
+      F.push({ at: 24, type: 'u8', label: 'door sub-type (entry byte 1)' });
+      break;
+    }
+    case 0x0D:
+      F.push({ at: 0, type: 'u8', label: 'room action slot' });
+      F.push({ at: 1, type: 'u16', label: 'zone X' });
+      F.push({ at: 3, type: 'u16', label: 'zone Z' });
+      F.push({ at: 5, type: 'u16', label: 'zone width (+X)' });
+      F.push({ at: 7, type: 'u16', label: 'zone depth (+Z)',
+               hint: 'the box test is UNSIGNED, so it only extends towards +X/+Z' });
+      F.push({ at: 9, type: 'u8', label: 'handler (entry byte 0)', enum: RA_ENUM() });
+      F.push({ at: 10, type: 'u8', label: 'probe flags (entry byte 1)', hint: 'low 3 bits pick the probe pass: 0x01 player (game_loop), 0x02 Tyrant, 0x04 room-object push. 0x40 tests the prober position instead of the 600-unit forward point; 0x80 = action key only' });
+      raParamFields(F, ib[10], 11);
+      break;
+    case 0x10:
+    case 0x11:
+    case 0x1A:
+      F.push({ at: 0, type: 'u8', label: 'item id' });
+      break;
+    case 0x12:
+      F.push({ at: 0, type: 'u8', label: 'room action slot' });
+      F.push({ at: 1, type: 'u8', label: 'handler (entry byte 0)', enum: RA_ENUM(),
+               hint: '0 = no_room_action = zone dead' });
+      F.push({ at: 2, type: 'u8', label: 'probe flags (entry byte 1)', hint: 'low 3 bits pick the probe pass: 0x01 player (game_loop), 0x02 Tyrant, 0x04 room-object push. 0x40 tests the prober position instead of the 600-unit forward point; 0x80 = action key only' });
+      raParamFields(F, ib[2], 3);
+      break;
+    case 0x13:
+      F.push({ at: 0, type: 'u8', label: 'room action slot' });
+      F.push({ at: 1, type: 'u8', label: 'handler (entry byte 0)', enum: RA_ENUM(),
+               hint: '0 = no_room_action = zone dead' });
+      F.push({ at: 2, type: 'u8', label: 'probe flags (entry byte 1)', hint: 'low 3 bits pick the probe pass: 0x01 player (game_loop), 0x02 Tyrant, 0x04 room-object push. 0x40 tests the prober position instead of the 600-unit forward point; 0x80 = action key only' });
+      break;
+    case 0x14:
+      F.push({ at: 1, type: 'u8', label: 'event slot (0-7)' });
+      F.push({ at: 2, type: 'u8', label: 'script index' });
+      break;
+    case 0x15:
+    case 0x16:
+    case 0x43:
+      F.push({ at: 0, type: 'u8', label: 'BGM channel (g_BGM_STATE bit ch+3)' });
+      break;
+    case 0x17:
+      F.push({ at: 0, type: 'u8', label: 'snd bank / type' });
+      F.push({ at: 1, type: 'u8', label: 'sound id' });
+      F.push({ at: 2, type: 'i8', label: 'volume' });
+      F.push({ at: 3, type: 'u8', label: 'position source',
+               enum: { 0: '0 - explicit (x,0,z)', 1: '1 - player', 2: '2 - enemy/NPC',
+                        3: '3 - play_sfx (2D)', 4: '4+ - no position operand' } });
+      F.push({ at: 4, type: 'u8', label: 'enemy/NPC index (src 2 only)' });
+      break;
+    case 0x18:
+      F.push({ at: 0, type: 'bits', mask: 0x7F, shift: 0, label: 'event slot (x0C each)',
+               hint: 'bit 7 of this byte selects the alt rotation' });
+      F.push({ at: 9, type: 'u8', label: 'item id (item type)', enum: ITEM_ENUM,
+               hint: 'picks the pick-up the player receives AND the room check '
+                   + 'action: a map (0x4E-0x53) gets 0x0F pickup_key_event, a '
+                   + 'document (> 0x53) gets 0x0D, anything else 4. 0x2F (ink '
+                   + 'ribbon) is skipped entirely on Jill\'s first playthrough, '
+                   + 'and 0x50/0x52 get their palette darkened. The MODEL is the '
+                   + 'separate field below - this id does not choose it.' });
+      F.push({ at: 11, type: 'u8', label: 'model index (g_item_model_table)' });
+      F.push({ at: 12, type: 'u8', label: 'SCA parent', enum: SCA_PARENT_OMODEL,
+               hint: 'whose matrix the pick-up hangs off. 0xFF = none (the item '
+                   + 'uses its own matrix and sits at the pos below), 0xFE = the '
+                   + 'player, anything else = g_omodel_table[value], so the item '
+                   + 'moves with that room object' });
+      F.push({ at: 13, type: 'i16', label: 'pos X' });
+      F.push({ at: 15, type: 'i16', label: 'pos Y' });
+      F.push({ at: 17, type: 'i16', label: 'pos Z' });
+      F.push({ at: 19, type: 'u16', label: 'anim word' });
+      F.push({ at: 21, type: 'u8', label: 'roomItemsFlags bit' });
+      break;
+    case 0x19:
+      F.push({ at: 0, type: 'u8', label: 'model index (g_item_model_table)' });
+      F.push({ at: 1, type: 'u8', label: 'value' });
+      break;
+    case 0x1B:
+      F.push({ at: 0, type: 'u8', label: 'enemy/NPC type id' });
+      F.push({ at: 1, type: 'u8', label: 'behavior_flags' });
+      F.push({ at: 2, type: 'u8', label: 'EnemiesFlags guard bit',
+               hint: 'spawn is skipped when the bit is already set; 0xFF = spawn unconditionally' });
+      F.push({ at: 3, type: 'u8', label: 'force init' });
+      F.push({ at: 4, type: 'u8', label: 'SCA hit-data size / 6' });
+      F.push({ at: 7, type: 'i16', label: 'yaw' });
+      F.push({ at: 9, type: 'i16', label: 'pitch' });
+      F.push({ at: 11, type: 'i16', label: 'pos X' });
+      F.push({ at: 13, type: 'i16', label: 'pos Y' });
+      F.push({ at: 15, type: 'i16', label: 'pos Z' });
+      F.push({ at: 17, type: 'bits', mask: 0x0F, shift: 0, label: 'event slot' });
+      F.push({ at: 18, type: 'u8', label: 'animationId' });
+      F.push({ at: 19, type: 'u8', label: 'animation_frame_id' });
+      F.push({ at: 20, type: 'u8', label: 'extra flags' });
+      break;
+    case 0x1C:
+      F.push({ at: 0, type: 'u8', label: 'light (g_RdtPointer[1].lights)' });
+      F.push({ at: 1, type: 'i16', label: 'delta (sign seeds g_SpecialRoomLightState)' });
+      F.push({ at: 3, type: 'u16', label: 'RGB mask (bit0 B, bit1 G, bit2 R -> 0xFF)' });
+      break;
+    case 0x1D:
+      F.push({ at: 0, type: 'u8', label: 'equipped item id',
+               hint: 'any item, not just weapons - every sampled use tests 0 (nothing equipped)' });
+      break;
+    case 0x1E:
+      F.push({ at: 0, type: 'u8', label: 'voice op',
+               enum: { 0: '0 - ignored', 1: '1 - start voice line', 2: '2 - end line, clear the wait flag' } });
+      F.push({ at: 1, type: 'u16', label: 'voice line id' });
+      break;
+    case 0x1F:
+      F.push({ at: 0, type: 'bits', mask: 0x3F, shift: 0, label: 'omodel slot being set up',
+               hint: 'index into g_omodel_table / RDT object_models; bit 7 of this '
+                   + 'byte queues the texture' });
+      F.push({ at: 1, type: 'u8', label: 'entry flags (bit 4 = alt rotation)' });
+      F.push({ at: 2, type: 'u8', label: 'SCA parent', enum: SCA_PARENT_ENEMY,
+               hint: '0xFF none, 0xFE player, < 0x80 g_omodel_table[value], '
+                   + '>= 0x80 g_EnemiesList[value & 0x7F]' });
+      F.push({ at: 3, type: 'i16', label: 'pos X' });
+      F.push({ at: 5, type: 'i16', label: 'pos Y' });
+      F.push({ at: 7, type: 'i16', label: 'pos Z' });
+      F.push({ at: 9, type: 'u16', label: 'anim word' });
+      break;
+    case 0x20:
+      F.push({ at: 3, type: 'i16', label: 'direction angle' });
+      F.push({ at: 5, type: 'i16', label: 'speed x' });
+      F.push({ at: 7, type: 'i16', label: 'pos X' });
+      F.push({ at: 9, type: 'i16', label: 'pos Y' });
+      F.push({ at: 11, type: 'i16', label: 'pos Z' });
+      break;
+    case 0x21:
+      F.push({ at: 0, type: 'u8', label: 'enemy/NPC index' });
+      F.push({ at: 3, type: 'i16', label: 'yaw' });
+      F.push({ at: 5, type: 'i16', label: 'pitch' });
+      F.push({ at: 7, type: 'i16', label: 'pos X' });
+      F.push({ at: 9, type: 'i16', label: 'pos Y' });
+      F.push({ at: 11, type: 'i16', label: 'pos Z' });
+      break;
+    case 0x22:
+      F.push({ at: 0, type: 'u8', label: 'search id (ammo family)' });
+      cmpFields(1, 2);
+      break;
+    case 0x24:
+      F.push({ at: 0, type: 'u8', label: 'event slot' });
+      F.push({ at: 1, type: 'u8', label: 'action',
+               enum: Object.fromEntries(Object.entries(ROOM_ACTIONS)
+                 .map(([k, v]) => [k, Number(k) + ' - ' + v])) });
+      break;
+    case 0x25:
+      F.push({ at: 1, type: 'u8', label: 'sprite id' });
+      F.push({ at: 2, type: 'u8', label: 'disable',
+               enum: { 0: '0 - show', 1: 'nonzero - hide' } });
+      break;
+    case 0x27:
+      F.push({ at: 0, type: 'u8', label: 'fade type (BuildSndFadeTbl)' });
+      break;
+    case 0x28:
+      F.push({ at: 1, type: 'u8', label: 'enemy/NPC index' });
+      F.push({ at: 2, type: 'u8', label: 'sub-command',
+               enum: Object.fromEntries(Object.entries(ENEMY_PROP_SUB)
+                 .map(([k, v]) => [k, k + ' - ' + v])) });
+      break;
+    case 0x29:
+      F.push({ at: 0, type: 'u8', label: 'FMV id' });
+      break;
+    case 0x2A:
+    case 0x3D:
+      F.push({ at: 0, type: 'u8', label: 'effect type' });
+      F.push({ at: 1, type: 'u8', label: 'parent index' });
+      F.push({ at: 2, type: 'u8', label: 'parent kind',
+               enum: Object.assign({ 2: '2..0x7F - effect pool slot',
+                                     0x80: '0x80..0xFF - room object, omodel = value & 0x7F' },
+                                   EFFECT_PARENT),
+               hint: 'the HIGH byte of the parent word. 0 identity, 1 player, '
+                   + '2-0x7F reads g_effectPool[kind * 3 + 0x3D] (past the 64-slot '
+                   + 'pool - the original overruns here too), and 0x80 up takes '
+                   + 'g_omodel_table[kind & 0x7F]' });
+      F.push({ at: 3, type: 'i16', label: 'offset X' });
+      F.push({ at: 5, type: 'i16', label: 'offset Y' });
+      F.push({ at: 7, type: 'i16', label: 'offset Z' });
+      F.push({ at: 9, type: 'u16', label: 'effect flags',
+               hint: 'passed straight to Effect_CreateBillboard; the omodel-matrix '
+                   + 'bit is 0x80 of the parent kind above, not a bit in here' });
+      break;
+    case 0x2B:
+      F.push({ at: 0, type: 'i16', label: 'attack behaviour' });
+      F.push({ at: 2, type: 'u16', label: 'anim parameter' });
+      break;
+    case 0x2C:
+      F.push({ at: 0, type: 'u8', label: 'item id to remove' });
+      break;
+    case 0x2F:
+      F.push({ at: 0, type: 'u8', label: 'channel (x8-byte record)' });
+      F.push({ at: 1, type: 'u8', label: 'param A (pan)' });
+      F.push({ at: 2, type: 'u8', label: 'param B (volume)' });
+      break;
+    case 0x30:
+      F.push({ at: 0, type: 'u8', label: 'boundary list index' });
+      F.push({ at: 1, type: 'u8', label: 'boundary index (x0C stride)' });
+      F.push({ at: 2, type: 'u8', label: 'flag mode',
+               hint: 'non-zero rewrites bits 0x0F00 of boundary[5]' });
+      F.push({ at: 3, type: 'u16', label: 'z' });
+      F.push({ at: 5, type: 'u16', label: 'w' });
+      F.push({ at: 7, type: 'u16', label: 'x' });
+      F.push({ at: 9, type: 'u16', label: 'y' });
+      break;
+    case 0x31:
+      F.push({ at: 0, type: 'u8', label: 'state word', enum: enumFrom(STATE_WORDS),
+               hint: 'ROOM4110 writes indices 1 and 2 here to drive the emergency light' });
+      F.push({ at: 1, type: 'u16', label: 'value' });
+      break;
+    case 0x35:
+      F.push({ at: 0, type: 'u8', label: 'table',
+               enum: { 0: '0 - g_omodel_table', 1: '1 - g_item_model_table' } });
+      F.push({ at: 1, type: 'u8', label: 'object index' });
+      F.push({ at: 2, type: 'u8', label: 'value' });
+      break;
+    case 0x36:
+      F.push({ at: 0, type: 'u8', label: 'omodel index',
+               hint: 'g_omodel_table[index] + 0x86 - the room object\'s billboard handle' });
+      cmpFields(1, 2);
+      break;
+    case 0x37:
+      F.push({ at: 0, type: 'u8', label: 'stage (x32 rooms)' });
+      F.push({ at: 1, type: 'u8', label: 'room' });
+      F.push({ at: 2, type: 'u8', label: 'value' });
+      break;
+    case 0x38:
+      F.push({ at: 0, type: 'u8', label: 'invert', enum: { 0: '0 - as-is', 1: '1 - negate' } });
+      F.push({ at: 1, type: 'u16', label: 'dpad mask' });
+      break;
+    case 0x39:
+      F.push({ at: 0, type: 'u8', label: 'enemy/NPC index' });
+      break;
+    case 0x3A:
+      F.push({ at: 0, type: 'u8', label: 'cam_switch_zones entry (x14 stride)' });
+      F.push({ at: 1, type: 'u8', label: 'to camera' });
+      F.push({ at: 2, type: 'u8', label: 'from camera' });
+      break;
+    case 0x3B:
+      F.push({ at: 0, type: 'u16', label: 'selector',
+               hint: '< 0x8000: item model (sel >> 8); >= 0x8000: omodel ((sel >> 8) & 0x7F)' });
+      F.push({ at: 2, type: 'u16', label: 'value -> +0x72' });
+      F.push({ at: 4, type: 'u16', label: 'value -> +0x76' });
+      break;
+    case 0x3C:
+      F.push({ at: 1, type: 'u16', label: 'target spec',
+               hint: 'low byte: 0 enemy/NPC / 1 omodel / 2 item model; index is spec >> 8' });
+      F.push({ at: 3, type: 'u16', label: 'max distance' });
+      break;
+    case 0x3F:
+      F.push({ at: 1, type: 'u16', label: 'min angle' });
+      F.push({ at: 3, type: 'u16', label: 'max angle' });
+      break;
+    case 0x40: {
+      F.push({ at: 0, type: 'u8', label: 'light index (x2C stride, -4)' });
+      const names = ['field 0 (x)', 'field 1 (y)', 'field 2 (z)', 'field 3', 'field 4', 'field 5', 'field 8'];
+      for (let i = 0; i < 7; i++) F.push({ at: 1 + i * 2, type: 'i16', label: names[i] });
+      break;
+    }
+    case 0x41:
+      F.push({ at: 0, type: 'u8', label: 'entity (0 = player)' });
+      F.push({ at: 1, type: 'u16', label: 'posY value' });
+      break;
+    case 0x42:
+      F.push({ at: 0, type: 'u8', label: 'effect type' });
+      F.push({ at: 1, type: 'u16', label: 'parameter' });
+      break;
+    case 0x44:
+      F.push({ at: 0, type: 'u8', label: 'event slot (0-7)' });
+      break;
+    case 0x45:
+      F.push({ at: 0, type: 'i8', label: 'posY delta (s8)' });
+      break;
+    case 0x46: {
+      // 3 x 12-byte light records [x:s16][y:s16][z:s16][r][g][b][pad][radius:s16]
+      // followed by the three ambient shorts that end in setBackColor.
+      for (let li = 0; li < 3; li++) {
+        const b = 1 + li * 12;
+        F.push({ at: b,     type: 'i16', label: 'light ' + li + ' X' });
+        F.push({ at: b + 2, type: 'i16', label: 'light ' + li + ' Y' });
+        F.push({ at: b + 4, type: 'i16', label: 'light ' + li + ' Z' });
+        F.push({ at: b + 6, type: 'u8',  label: 'light ' + li + ' R' });
+        F.push({ at: b + 7, type: 'u8',  label: 'light ' + li + ' G' });
+        F.push({ at: b + 8, type: 'u8',  label: 'light ' + li + ' B' });
+        F.push({ at: b + 10, type: 'i16', label: 'light ' + li + ' radius' });
+      }
+      F.push({ at: 37, type: 'i16', label: 'ambient R (setBackColor)' });
+      F.push({ at: 39, type: 'i16', label: 'ambient G' });
+      F.push({ at: 41, type: 'i16', label: 'ambient B' });
+      break;
+    }
+    case 0x47:
+      F.push({ at: 0, type: 'u8', label: 'object index (g_omodel_table)' });
+      F.push({ at: 1, type: 'i16', label: 'rot X (+0x72)' });
+      F.push({ at: 3, type: 'i16', label: 'rot Y / yaw (+0x74)' });
+      F.push({ at: 5, type: 'i16', label: 'rot Z (+0x76)' });
+      F.push({ at: 7, type: 'i16', label: 'pos X (+0x6C)' });
+      F.push({ at: 9, type: 'i16', label: 'pos Y (+0x6E)' });
+      F.push({ at: 11, type: 'i16', label: 'pos Z (+0x70)' });
+      break;
+    case 0x49:
+      F.push({ at: 0, type: 'u8', label: 'room sprite id to hide',
+               hint: '0xFF wipes the pending mask instead; Room_ApplySpriteFlags consumes it each frame' });
+      break;
+    case 0x4A:
+    case 0x4B:
+      F.push({ at: 0, type: 'u8', label: 'unused (kept for a non-0xFF targetBgmState)' });
+      break;
+    case 0x4C:
+      F.push({ at: 0, type: 'u8', label: 'mode',
+               enum: { 0: '0 - remember: record byte 9 -> state byte',
+                       1: '1 - restore: state byte -> record byte 9',
+                       2: '2 - carried quantity of record byte 8 -> both' } });
+      F.push({ at: 1, type: 'u8', label: 'room action slot',
+               hint: 'record byte 8 is the item id, byte 9 its quantity' });
+      F.push({ at: 2, type: 'u8', label: 'state byte', enum: enumFrom(STATE_BYTES) });
+      break;
+    case 0x4E:
+      F.push({ at: 0, type: 'u8', label: 'mode',
+               enum: { 0: '0 - OR', 1: '1 - AND-NOT', 2: '2 - XOR' } });
+      F.push({ at: 1, type: 'u16', label: 'mask' });
+      break;
+    case 0x4F:
+      F.push({ at: 0, type: 'u8', label: 'costume variant (param & 1)',
+               enum: { 0: '0 - default outfit', 1: '1 - alternate outfit' } });
+      break;
+  }
+  return F;
+}
+
+function fieldsFor(it) {
+  const F = [];
+  const st = it.state, op = it.op;
+
+  if (it.kind === 'scd') return scdFieldsFor(op, it.bytes);
+
+  if (it.kind === 'ctrl') {
+    if (op === 0xF8 || op === 0xFA) F.push({ at:2, type:'i16', label:'counter (frames / iterations)' });
+    if (op === 0xFC) F.push({ at:1, type:'u8', label:'jump width', ro:true,
+      hint:'recomputed from the payload length on every edit' });
+    return F;
+  }
+  if (it.kind !== 'op') return F;
+
+  if (st === 0) {
+    if (op === 0x04) {
+      F.push({ at:1, type:'u8', label:'kind', enum:ENTITY_KIND });
+      F.push({ at:2, type:'u8', label:'index' });
+    }
+    if (op === 0x05) {
+      F.push({ at:1, type:'u8', label:'event slot (0-7)' });
+      F.push({ at:2, type:'u8', label:'script index' });
+      F.push({ at:3, type:'u8', label:'byte 3 (unused)' });
+    }
+    if (op === 0x06) F.push({ at:2, type:'u16', label:'block size',
+      hint:'run_command_functions reads this from the payload start, then runs commands from +2' });
+    if (op === 0x07) F.push({ at:1, type:'u8', label:'total width', ro:true,
+      hint:'recomputed from the payload length' });
+    if (op === 0x08) F.push({ at:1, type:'u8', label:'script index' });
+    if (op === 0x09) F.push({ at:1, type:'u8', label:'event slot' });
+  }
+
+  if (st === 1) {
+    if (op === 0x81) {
+      F.push({ at:1, type:'u8', label:'lookAtFlags',
+        hint:'0x93 = target mode; any low nibble = position mode (width 10); 0 = off (width 2)' });
+      if (it.bytes.length >= 10) {
+        F.push({ at:2, type:'i16', label:'selector / x' });
+        F.push({ at:4, type:'i16', label:'index / y' });
+        F.push({ at:6, type:'i16', label:'z' });
+        F.push({ at:8, type:'u8',  label:'yaw step (0 -> 0xC0)' });
+        F.push({ at:9, type:'u8',  label:'pitch step (0 -> 0x40)' });
+      }
+    }
+    if (op === 0x83) {
+      F.push({ at:1, type:'u8', label:'action_behavior', enum:PLAYER_BEHAVIOR });
+      F.push({ at:2, type:'u16', label:'target unk_c6 (X)' });
+      F.push({ at:4, type:'u16', label:'target unk_c8 (Z)' });
+      F.push({ at:6, type:'u8', label:'completion flag (SysFlags bit)',
+        hint:'the behaviour raises Flg_on(g_SysFlags, this) when it finishes' });
+    }
+    if (op === 0x84) {
+      F.push({ at:1, type:'u8', label:'animationId' });
+      F.push({ at:2, type:'u8', label:'completion flag',
+        hint:'LOW byte of the word at +2 - not the byte at +3' });
+      F.push({ at:3, type:'u8', label:'entity_flags source',
+        hint:'scd_entity_flags = (word@+2 >> 6) & 0x3FC. bit1 = run handler twice, bit2 = refresh weapon joint, bit3 = which hand, bit5 = blend_counter 0' });
+    }
+    if (op === 0x85) {
+      F.push({ at:1, type:'u8', label:'action_behavior', enum:PLAYER_BEHAVIOR });
+      F.push({ at:2, type:'u8', label:'animationId' });
+      F.push({ at:3, type:'u8', label:'completion flag' });
+    }
+    if (op === 0x87) {
+      F.push({ at:1, type:'u8', label:'mode', enum:{0:'0 OR', 1:'1 SET', 2:'2 XOR'} });
+      F.push({ at:2, type:'u16', label:'value' });
+    }
+    if (op === 0x88) F.push({ at:2, type:'u16', label:'scd_timer' });
+    if (op === 0x89 || op === 0x8A) F.push({ at:1, type:'u8', label:'animation_frame_id' });
+  }
+
+  if (st === 2) {
+    if (op === 0x05) {
+      F.push({ at:1, type:'i8', label:'speed.x' });
+      F.push({ at:2, type:'i8', label:'speed.y' });
+      F.push({ at:3, type:'i8', label:'speed.z' });
+    }
+    if (op === 0x06) {
+      F.push({ at:1, type:'i8', label:'move_step_x' });
+      F.push({ at:2, type:'i8', label:'move_step_z' });
+      F.push({ at:3, type:'i8', label:'state byte' });
+    }
+    if (op === 0x07) {
+      F.push({ at:2, type:'i16', label:'pos X' });
+      F.push({ at:4, type:'i16', label:'pos Y' });
+      F.push({ at:6, type:'i16', label:'pos Z' });
+    }
+    if (op === 0x08) {
+      F.push({ at:1, type:'u8', label:'offset from +0x84' });
+      F.push({ at:2, type:'u8', label:'value' });
+    }
+    if (op === 0x09) F.push({ at:1, type:'u8', label:'hit_state' });
+    if (op === 0x0A) {
+      F.push({ at:1, type:'u8', label:'selector',
+        enum:{0:'0 pos.x',1:'1 pos.y',2:'2 pos.z',3:'3 health',4:'4 unk_c6',5:'5 unk_c8'} });
+      F.push({ at:2, type:'u16', label:'value' });
+    }
+    if (op === 0x0B) {
+      F.push({ at:2, type:'u16', label:'rot X (+0x72)' });
+      F.push({ at:4, type:'u16', label:'rot Y / yaw (+0x74)' });
+      F.push({ at:6, type:'u16', label:'rot Z (+0x76)' });
+    }
+  }
+
+  if (st === 3) F.push({ at:0, type:'u8', label:'action_behavior', enum:PLAYER_BEHAVIOR });
+
+  return F;
+}
+
+// `base` shifts every field offset. Event-VM fieldsFor() offsets are relative
+// to it.bytes (opcode at 0), but scdFieldsFor() offsets are relative to the
+// bytes AFTER the opcode - buildEditor passes base=1 for kind 'scd' items.
+// The bit_test field bug is why the base exists: without it every SCD field
+// editor read the opcode byte as its first operand.
+function readField(b, f, base) {
+  const at = f.at + (base || 0);
+  switch (f.type) {
+    case 'u8':  return b[at];
+    case 'i8':  return s8(b[at]);
+    case 'u16': return u16(b, at);
+    case 'i16': return i16(b, at);
+    // A sub-byte operand: mask then shift. bit_test / bit_op pack the byte
+    // offset and the bit index into one byte, and editing them as raw hex is
+    // how you end up writing the wrong bank.
+    case 'bits': return (b[at] & f.mask) >> (f.shift || 0);
+    // The whole selector byte as a Flg_on/Flg_ck flag id.
+    case 'flagid': return b[at];
+  }
+  return 0;
+}
+function writeField(b, f, v, base) {
+  const at = f.at + (base || 0);
+  switch (f.type) {
+    case 'u8': case 'i8': b[at] = v & 0xFF; break;
+    case 'u16': case 'i16': b[at] = v & 0xFF; b[at + 1] = (v >> 8) & 0xFF; break;
+    case 'bits': b[at] = (b[at] & ~f.mask & 0xFF) | ((v << (f.shift || 0)) & f.mask); break;
+    case 'flagid': b[at] = v & 0xFF; break;
+  }
+}
+
+// The payload span of the variable-width opcodes: [from, end).
+function payloadRange(it) {
+  if (it.kind === 'ctrl' && it.op === 0xFC) return 2;
+  if (it.kind === 'op' && it.state === 0 && (it.op === 0x06 || it.op === 0x07)) return 2;
+  return -1;
+}
+
+// Keep the width byte in step with the item length after a payload edit.
+function fixWidthByte(it) {
+  const p = payloadRange(it);
+  if (p < 0 || it.bytes.length < 2) return;
+  it.bytes[1] = it.bytes.length & 0xFF;
+}
+
+// ===========================================================================
+// Templates for the insert palette
+// ===========================================================================
+function templates(state) {
+  const T = [];
+  const add = (label, bytes) => T.push({ label, bytes });
+  if (state === 0) {
+    add('nop', [0x00]);
+    add('enter_state1 (animation)', [0x01]);
+    add('enter_state2_i (movement + reset)', [0x02]);
+    add('enter_state2 (movement)', [0x03]);
+    add('set_entity player 0', [0x04, 0x00, 0x00]);
+    add('event_create slot 0 <- script 0', [0x05, 0x00, 0x00, 0x00]);
+    add('exec_scd cut_set 0', [0x07, 0x04, 0x09, 0x00]);
+    add('exec_scd bit_op', [0x07, 0x06, 0x05, 0x04, 0x00, 0x01]);
+    add('run_scd (empty block)', [0x06, 0x04, 0x02, 0x00]);
+    add('event_reinit script 0', [0x08, 0x00]);
+    add('event_kill slot 0', [0x09, 0x00]);
+  } else if (state === 1) {
+    add('s1_end_clear', [0x80]);
+    add('s1_lookat off', [0x81, 0x00]);
+    add('s1_lookat_off', [0x82]);
+    add('s1_pose_full (beh 4 backward walk)', [0x83, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00]);
+    add('s1_pose_anim', [0x84, 0x00, 0x3F, 0x00]);
+    add('s1_pose_beh', [0x85, 0x00, 0x00, 0x00]);
+    add('s1_idle', [0x86]);
+    add('s1_flags OR 0', [0x87, 0x00, 0x00, 0x00]);
+    add('s1_timer 0x28', [0x88, 0x00, 0x28, 0x00]);
+    add('s1_frame_remap', [0x89, 0x00]);
+    add('s1_frame', [0x8A, 0x00]);
+    add('s1_end', [0x8B]);
+    add('s1_nop', [0x00]);
+  } else if (state === 2) {
+    add('s2_nop', [0x00]);
+    add('s2_end', [0x01]);
+    add('s2_step_pos', [0x02]);
+    add('s2_step_rot', [0x03]);
+    add('s2_step_both', [0x04]);
+    add('s2_set_speed', [0x05, 0x00, 0x00, 0x00]);
+    add('s2_set_step', [0x06, 0x00, 0x00, 0x00]);
+    add('s2_set_pos', [0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+    add('s2_set_byte', [0x08, 0x00, 0x00]);
+    add('s2_hit_state', [0x09, 0x00]);
+    add('s2_set_field', [0x0A, 0x00, 0x00, 0x00]);
+    add('s2_set_rot', [0x0B, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+  } else {
+    add('s3_behavior 0', [0x00, 0x00]);
+  }
+  // control flow is legal in every state
+  add('--- control flow ---', null);
+  add('push_wait', [0xF6]);
+  add('wait', [0xF7]);
+  add('push_count 10 frames', [0xF8, 0xF9, 0x0A, 0x00]);
+  add('dec_count', [0xF9, 0x00, 0x00]);
+  add('loop_begin 10', [0xFA, 0x00, 0x0A, 0x00]);
+  add('loop_end', [0xFB]);
+  add('call + bit_test SysFlags bit 0', [0xFC, 0x06, 0x04, 0x04, 0x00, 0x01]);
+  add('call_cmd', [0xFD]);
+  add('nop_yield', [0xFE]);
+  add('end', [0xFF]);
+  return T;
+}
+
+// Templates for the ROOM SCD command stream (init 0x60 / main 0x64 sections).
+// Byte layouts follow docs/SCD_SCRIPT_SYSTEM.md §4 / CmdFunctions.cpp.
+function scdTemplates() {
+  const T = [];
+  const add = (label, bytes) => T.push({ label, bytes });
+  add('nop (block terminator)', [0x00]);
+  add('--- flags / flow ---', null);
+  add('if bit_test SysFlags bit 0', [0x01, 0x06, 0x04, 0x04, 0x00, 0x01, 0x03, 0x00]);
+  add('bit_op set (bank 4, bit 0)', [0x05, 0x04, 0x00, 0x00]);
+  add('bit_op clear (bank 4, bit 0)', [0x05, 0x04, 0x00, 0x01]);
+  add('state_byte_test', [0x06, 0x00, 0x00, 0x00]);
+  add('state_byte_set', [0x08, 0x00, 0x00, 0x00]);
+  add('state_word_set', [0x31, 0x00, 0x00, 0x00]);
+  add('--- camera / message ---', null);
+  add('cut_lock_set cam 0', [0x09, 0x00]);
+  add('current_cut_set', [0x0A, 0x00]);
+  add('cut_zone_set', [0x3A, 0x00, 0x00, 0x00]);
+  add('message_set', [0x0B, 0x00, 0x00, 0x00]);
+  add('--- sound / fmv ---', null);
+  add('bgm_play ch 0', [0x15, 0x00]);
+  add('bgm_stop ch 0', [0x16, 0x00]);
+  add('sfx_3d_play at player', [0x17, 0x00, 0x00, 0x40, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00]);
+  add('sfx_set', [0x1E, 0x00, 0x00, 0x00]);
+  add('fmv_set', [0x29, 0x00]);
+  add('--- room objects ---', null);
+  add('door_set (empty record)', [0x0C, 0x00, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]);
+  add('room_action_set (empty record)', [0x0D, 0x00, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]);
+  add('item_model_set (empty)', [0x18, 0x00, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]);
+  add('omodel_set (empty)', [0x1F, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]);
+  add('room_action door_try_enter', [0x24, 0x00, 0x01, 0x00]);
+  add('room_sprite_set show 0', [0x25, 0x00, 0x00, 0x00]);
+  add('enemy_set (empty spawn)', [0x1B, 0x00, 0x00, 0xFF, 0x00, 0x00, 0,0,0,0,0,0,0,0,0,0,0,0,0,0x00,0x00,0x00]);
+  add('scd_event_create slot 0 <- script 0', [0x14, 0x00, 0x00, 0x00]);
+  add('scd_event_kill slot 0', [0x44, 0x00]);
+  add('mirror_set (off)', [0x0F, 0x00, 0,0, 0,0, 0,0]);
+  add('room_lights_set (dark)', [0x46, 0x00, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]);
+  add('costume_variant_set 0', [0x4F, 0x00]);
+  return T;
+}
+
+// ===========================================================================
+// Document state
+// ===========================================================================
+let D = null;             // { name, bytes, mode, sectionOff, evtTable, entries, entrySeg, segs, pad, regionEnd, sections }
+let selScript = 0;
+let curSection = EVT_TABLE_OFF;   // which of SCRIPT_SECTIONS is loaded
+let loaded = null;                // { name, bytes } - kept so sections can be re-parsed
+const undoStack = [], redoStack = [];
+
+function anyDirty() { return !!D && D.segs.some(segDirty); }
+
+function parseRdt(name, bytes, sectionOff) {
+  if (bytes.length < 0x94) throw new Error('too small to be an RDT (' + bytes.length + ' bytes)');
+
+  const sections = [];
+  for (let o = 0x48; o < 0x94; o += 4) sections.push({ off: o, val: u32(bytes, o) });
+
+  if (sectionOff !== undefined && sectionOff !== EVT_TABLE_OFF) {
+    return parseScdSection(name, bytes, sectionOff, sections);
+  }
+
+  const evtTable = u32(bytes, EVT_TABLE_OFF);
+  if (evtTable === 0 || evtTable + 8 > bytes.length) {
+    throw new Error('header 0x68 (scd_opcodes2) is ' + hx(evtTable, 8) + ' - no event table in this room');
+  }
+
+  // Table: relative dwords, terminated by a zero entry.
+  const entries = [];
+  let p = evtTable, guard = 0;
+  while (p + 4 <= bytes.length && guard++ < 512) {
+    const v = u32(bytes, p);
+    if (v === 0) break;
+    entries.push(v);
+    p += 4;
+  }
+  if (!entries.length) throw new Error('the event table at ' + hx(evtTable, 8) + ' is empty');
+  const tableBytes = (entries.length + 1) * 4;
+
+  // The region runs to the next landmark after the table: any other section
+  // pointer, any camera mask pointer, or end of file.
+  const landmarks = [bytes.length];
+  for (const s of sections) if (s.val > evtTable) landmarks.push(s.val);
+  const camCount = bytes[1];
+  for (let i = 0; i < camCount; i++) {
+    const c = 0x94 + i * 0x2C;
+    if (c + 8 <= bytes.length) {
+      for (const v of [u32(bytes, c), u32(bytes, c + 4)]) if (v > evtTable) landmarks.push(v);
+    }
+  }
+  const regionEnd = Math.min.apply(null, landmarks);
+
+  // Distinct script starts, sorted. Two table entries may share one start.
+  const starts = Array.from(new Set(entries)).sort((a, b) => a - b);
+  const firstStart = starts[0];
+  const pad = Array.from(bytes.slice(evtTable + tableBytes, evtTable + firstStart));
+
+  const segs = starts.map((rel, i) => {
+    const abs = evtTable + rel;
+    const absEnd = i + 1 < starts.length ? evtTable + starts[i + 1] : regionEnd;
+    return {
+      origRel: rel,
+      // Every distinct start is a table entry, and ScdEventEntry_Init sets
+      // state = 0, so state 0 is the right default. Execution can also FALL
+      // THROUGH from the segment above with state 1 or 2 still live, which is a
+      // different (and equally valid) reading of the same bytes - hence the
+      // per-script override in the header.
+      initState: 0,
+      origBytes: Array.from(bytes.slice(abs, Math.max(abs, absEnd))),
+      items: decodeSegment(bytes, abs, Math.max(abs, absEnd), 0),
+    };
+  });
+
+  const entrySeg = entries.map(rel => starts.indexOf(rel));
+
+  return { name, bytes, mode: 'evt', sectionOff: EVT_TABLE_OFF,
+           evtTable, tableBytes, entries, entrySeg, segs, pad, regionEnd,
+           sections, origRegionSize: regionEnd - evtTable };
+}
+
+// ---------------------------------------------------------------------------
+// Room SCD sections (header 0x60 / 0x64)
+//
+// Layout: a chain of blocks, each a u16 size followed by that many bytes of
+// commands, ended by a zero size word. The chain is ALSO bounded by the next
+// section pointer - without that bound the walk runs into whatever follows and
+// decodes it as opcodes (ROOM1130's init otherwise reads 0x3a bytes past the
+// start of its own main script, into a dword offset table).
+// ---------------------------------------------------------------------------
+function decodeScdSegment(buf, start, end) {
+  const items = [];
+  let off = start, guard = 0;
+  while (off < end && guard++ < 20000) {
+    const c = scdOne(buf.slice(off, end), 0);
+    const len = Math.max(1, Math.min(c.len, end - off));
+    const bytes = buf.slice(off, off + len);
+    const it = mkItem('scd', c.op, -1, bytes, c.name, c.note);
+    if (c.bad) { it.name = c.name + ' (unknown width)'; it.note = 'stream stops here'; }
+    items.push(it);
+    if (c.bad) {
+      // Everything past an unknown width is not opcodes; keep it as one opaque
+      // item so re-serialising stays byte-exact.
+      if (off + len < end) items.push(mkItem('scd', -1, -1, buf.slice(off + len, end),
+                                             'raw', 'undecoded tail'));
+      break;
+    }
+    off += len;
+  }
+  return items;
+}
+
+function sectionLimit(bytes, sections, from) {
+  let limit = bytes.length;
+  for (const sec of sections) if (sec.val > from && sec.val < limit) limit = sec.val;
+  return limit;
+}
+
+function parseScdSection(name, bytes, sectionOff, sections) {
+  const base = u32(bytes, sectionOff);
+  if (base === 0 || base + 2 > bytes.length) {
+    throw new Error('header ' + hx(sectionOff) + ' is ' + hx(base, 8) + ' - no script here');
+  }
+  const regionEnd = sectionLimit(bytes, sections, base);
+
+  const segs = [];
+  let off = base, guard = 0;
+  let hadTerminator = false;
+  while (off + 2 <= regionEnd && guard++ < 4096) {
+    const size = u16(bytes, off);
+    if (size === 0) { hadTerminator = true; break; }   // explicit chain terminator
+    if (off + 2 + size > regionEnd) break;             // claims more than the section holds
+    segs.push({
+      origRel: off - base,
+      initState: 0,
+      origBytes: Array.from(bytes.slice(off + 2, off + 2 + size)),
+      items: decodeScdSegment(bytes, off + 2, off + 2 + size),
+    });
+    off += 2 + size;
+  }
+  if (!segs.length) throw new Error('no script blocks in section ' + hx(sectionOff));
+
+  // Not every section carries a zero terminator: where the blocks run flush up
+  // against the next section (ROOM1120's init ends exactly on the main script
+  // pointer) the walk stops on the bound instead. Remember which it was, or
+  // rebuilding invents two bytes and the region no longer fits.
+  return { name, bytes, mode: 'scd', sectionOff, evtTable: base, tableBytes: 0,
+           entries: segs.map(g => g.origRel), entrySeg: segs.map((_, i) => i),
+           segs, pad: [], regionEnd, sections, hadTerminator,
+           origRegionSize: regionEnd - base };
+}
+
+function segBytes(seg) {
+  const out = [];
+  for (const it of seg.items) for (const b of it.bytes) out.push(b);
+  return out;
+}
+
+function segDirty(seg) {
+  const cur = segBytes(seg);
+  if (cur.length !== seg.origBytes.length) return true;
+  for (let i = 0; i < cur.length; i++) if (cur[i] !== seg.origBytes[i]) return true;
+  return false;
+}
+
+function rebuildRegion() {
+  // SCD sections have no entry table: just the size-prefixed blocks and the
+  // zero terminator. Each block's size word is recomputed, so an edit that
+  // changes a command's length stays consistent.
+  if (D.mode === 'scd') {
+    const body = [];
+    const rels = [];
+    for (const seg of D.segs) {
+      rels.push(body.length);
+      const sb = segBytes(seg);
+      body.push(sb.length & 0xFF, (sb.length >> 8) & 0xFF);
+      for (const b of sb) body.push(b);
+    }
+    if (D.hadTerminator) body.push(0, 0);
+    return { table: [], pad: [], body, rels, size: body.length };
+  }
+
+  const tableBytes = (D.entries.length + 1) * 4;
+  const table = new Array(tableBytes).fill(0);
+  const body = [];
+  const rels = [];
+  let cursor = tableBytes + D.pad.length;
+  for (const seg of D.segs) {
+    rels.push(cursor);
+    const sb = segBytes(seg);
+    for (const b of sb) body.push(b);
+    cursor += sb.length;
+  }
+  const arr = new Uint8Array(table.length);
+  for (let i = 0; i < D.entries.length; i++) setU32(arr, i * 4, rels[D.entrySeg[i]]);
+  return { table: Array.from(arr), pad: D.pad, body,
+           size: tableBytes + D.pad.length + body.length };
+}
+
+// ===========================================================================
+// Output
+// ===========================================================================
+function buildFile() {
+  const r = rebuildRegion();
+  const region = r.table.concat(r.pad, r.body);
+  const fits = region.length <= D.origRegionSize;
+
+  let out, newTableOff;
+  if (fits) {
+    out = new Uint8Array(D.bytes);            // copy
+    out.set(region, D.evtTable);
+    // Anything the shrunken region no longer covers is left exactly as it was:
+    // it is unreachable once the table stops pointing at it.
+    newTableOff = D.evtTable;
+  } else {
+    // Append at EOF and repoint this section's header dword. Only that one
+    // dword changes, so every other section keeps its offset - see LoadRoomRdt,
+    // which rebases 0x48..0x93 by adding the buffer base and nothing else.
+    const padTo = (D.bytes.length + 3) & ~3;
+    out = new Uint8Array(padTo + region.length);
+    out.set(D.bytes, 0);
+    out.set(region, padTo);
+    newTableOff = padTo;
+    setU32(out, D.sectionOff, padTo);
+  }
+  return { out, fits, newTableOff, regionSize: region.length };
+}
+
+function dumpText() {
+  if (D.mode === 'scd') {
+    const L = [];
+    const sec = SCRIPT_SECTIONS.filter(x => x.off === D.sectionOff)[0];
+    L.push(D.name + '  ' + (sec ? sec.label : hx(D.sectionOff)) + ' @ ' + hx(D.evtTable, 8));
+    L.push(D.segs.length + ' blocks, section ' + hx(D.evtTable, 8) + '..' +
+           hx(D.regionEnd, 8) + ' (' + D.origRegionSize + ' bytes)');
+    L.push('');
+    D.segs.forEach((seg, si) => {
+      L.push('===== block ' + si + '  (+' + hx(seg.origRel, 4) +
+             (segDirty(seg) ? ', EDITED' : '') + ') =====');
+      let o = 0;
+      for (const it of seg.items) {
+        L.push('  +' + hx(o, 5) + '  ' + hexs(it.bytes).slice(0, 40).padEnd(42) +
+               it.name.padEnd(18) + ' ' + (it.note || ''));
+        o += it.bytes.length;
+      }
+      L.push('');
+    });
+    return L.join('\n');
+  }
+
+  const L = [];
+  L.push(D.name + '  event table @ ' + hx(D.evtTable, 8));
+  L.push(D.entries.length + ' event scripts, region ' + hx(D.evtTable, 8) + '..' +
+         hx(D.regionEnd, 8) + ' (' + D.origRegionSize + ' bytes)');
+  L.push('');
+  const r = rebuildRegion();
+  const tableBytes = (D.entries.length + 1) * 4;
+  let cursor = tableBytes + D.pad.length;
+  D.segs.forEach((seg, si) => {
+    const owners = [];
+    D.entrySeg.forEach((s, ei) => { if (s === si) owners.push(ei); });
+    L.push('===== script ' + owners.join(', ') + '  (table+' + hx(cursor, 4) +
+           (segDirty(seg) ? ', EDITED' : '') + ') =====');
+    let o = cursor;
+    for (const it of seg.items) {
+      const st = it.kind === 'ctrl' ? 'c' : it.state < 0 ? '-' : String(it.state);
+      L.push('  +' + hx(o, 5) + '  s' + st + '  ' +
+             hexs(it.bytes).slice(0, 40).padEnd(42) +
+             it.name.padEnd(16) + ' ' + (it.note || ''));
+      o += it.bytes.length;
+    }
+    cursor = o;
+    L.push('');
+  });
+  return L.join('\n');
+}
+
+// ===========================================================================
+// Undo
+// ===========================================================================
+function snapshot() {
+  return JSON.stringify({
+    segs: D.segs.map(s => ({ items: s.items.map(i => ({ ...i, bytes: i.bytes.slice() })) })),
+    entries: D.entries.slice(), entrySeg: D.entrySeg.slice(),
+  });
+}
+function restore(json) {
+  const s = JSON.parse(json);
+  s.segs.forEach((sg, i) => { if (D.segs[i]) D.segs[i].items = sg.items; });
+  while (D.segs.length > s.segs.length) D.segs.pop();
+  D.entries = s.entries; D.entrySeg = s.entrySeg;
+}
+function pushUndo() { undoStack.push(snapshot()); if (undoStack.length > 120) undoStack.shift(); redoStack.length = 0; }
+
+// ===========================================================================
+// Rendering
+// ===========================================================================
+function setStatus(msg, cls) { const s = $('status'); s.textContent = msg; s.className = cls || ''; }
+
+function render() {
+  renderFileInfo();
+  renderBudget();
+  renderScripts();
+  renderSections();
+  renderOps();
+  $('btnUndo').disabled = !undoStack.length;
+  $('btnRedo').disabled = !redoStack.length;
+}
+
+function renderFileInfo() {
+  const scd = D.mode === 'scd';
+  $('fileinfo').innerHTML =
+    row('name', D.name) +
+    row('size', D.bytes.length + ' bytes') +
+    row(scd ? 'section ' + hx(D.sectionOff) : 'event table', hx(D.evtTable, 8)) +
+    row(scd ? 'blocks' : 'scripts', String(D.entries.length)) +
+    (scd ? '' : row('segments', String(D.segs.length))) +
+    row('region', hx(D.evtTable, 8) + '..' + hx(D.regionEnd, 8));
+}
+function row(k, v, hi) { return '<tr class="' + (hi ? 'hi' : '') + '"><td>' + k + '</td><td>' + v + '</td></tr>'; }
+
+function renderBudget() {
+  const r = rebuildRegion();
+  const pct = Math.min(100, (r.size / D.origRegionSize) * 100);
+  const bar = $('budgetBar');
+  bar.className = 'bar' + (r.size > D.origRegionSize ? ' over' : '');
+  bar.firstElementChild.style.width = pct + '%';
+  $('budgetText').textContent = r.size + ' / ' + D.origRegionSize + ' bytes' +
+    (r.size > D.origRegionSize
+      ? '  (' + (r.size - D.origRegionSize) + ' over - will be appended at EOF)'
+      : '  (' + (D.origRegionSize - r.size) + ' free)');
+}
+
+function renderScripts() {
+  const el = $('scriptlist');
+  el.innerHTML = '';
+  D.entries.forEach((rel, i) => {
+    const seg = D.segs[D.entrySeg[i]];
+    const d = document.createElement('div');
+    d.className = 'scriptrow' + (i === selScript ? ' active' : '');
+    const dirty = segDirty(seg);
+    d.innerHTML = '<span class="idx">' + (D.mode === 'scd' ? 'blk ' : '') + i + '</span>' +
+      '<span class="meta">+' + hx(rel, 4) + '</span>' +
+      '<span class="meta">' + segBytes(seg).length + 'b</span>' +
+      '<span class="meta">' + seg.items.length + ' ops</span>' +
+      (dirty ? '<span class="dirty">edited</span>' : '');
+    d.onclick = () => { selScript = i; render(); };
+    el.appendChild(d);
+  });
+}
+
+function renderSections() {
+  const el = $('sections');
+  el.innerHTML = D.sections.map(s =>
+    row(hx(s.off) + ' ' + (SECTION_NAMES[s.off] || '?'), hx(s.val, 8),
+        s.off === D.sectionOff)).join('');
+}
+
+function curSeg() { return D.segs[D.entrySeg[selScript]]; }
+
+function renderOps() {
+  const seg = curSeg();
+  const owners = [];
+  D.entrySeg.forEach((s, ei) => { if (s === D.entrySeg[selScript]) owners.push(ei); });
+  $('opsTitle').textContent = (D.mode === 'scd' ? 'Block ' : 'Script ') + owners.join(' / ') +
+    ' - ' + seg.items.length + ' items, ' + segBytes(seg).length + ' bytes' +
+    (D.mode !== 'scd' && owners.length > 1 ? '  (shared by several table entries)' : '');
+  renderSegBanner(seg);
+
+  const q = $('filter').value.trim().toLowerCase();
+  const qBytes = /^[0-9a-f]{2}(\s+[0-9a-f]{2})*$/i.test(q) ? q.replace(/\s+/g, ' ').toUpperCase() : null;
+
+  const el = $('oplist');
+  el.innerHTML = '';
+  let off = 0;
+  seg.items.forEach((it, idx) => {
+    const myOff = off;
+    off += it.bytes.length;
+
+    if (q) {
+      const hay = (it.name + ' ' + (it.note || '')).toLowerCase();
+      const hexStr = hexs(it.bytes);
+      if (qBytes ? hexStr.indexOf(qBytes) < 0 : hay.indexOf(q) < 0) return;
+    }
+
+    const d = document.createElement('div');
+    d.className = 'op' + (it.open ? ' sel' : '') + (it.edited ? ' edited' : '');
+
+    const isScd = it.kind === 'scd';
+    const stCls = it.kind === 'ctrl' ? 'stc' : isScd ? (it.cond ? 'stc' : 'st0')
+                                     : it.state < 0 ? 'std' : 'st' + it.state;
+    const stTxt = it.kind === 'ctrl' ? 'cf' : isScd ? (it.cond ? 'COND' : 'scd')
+                                     : it.state < 0 ? '--' : 's' + it.state;
+
+    const head = document.createElement('div');
+    head.className = 'ophead';
+    head.innerHTML =
+      '<span class="off">+' + hx(myOff, 4) + '</span>' +
+      '<span class="st ' + stCls + '">' + stTxt + '</span>' +
+      '<span class="hex">' + hexs(it.bytes.slice(0, 12)) + (it.bytes.length > 12 ? ' ..' : '') + '</span>' +
+      '<span class="oname">' + it.name + '</span>' +
+      '<span class="note">' + escapeHtml(it.note || '') + '</span>';
+    head.onclick = () => { it.open = !it.open; renderOps(); };
+    d.appendChild(head);
+
+    if (it.open) d.appendChild(buildEditor(seg, it, idx));
+    el.appendChild(d);
+  });
+
+  if (!el.children.length) {
+    el.innerHTML = '<div style="color:var(--dim);padding:10px">no items match the filter</div>';
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// The script boundary is only where the NEXT table entry points; if this one
+// does not end in 0xFF the VM simply walks on into the following script's bytes,
+// carrying its state with it. Say so, and let the reading be re-based.
+function renderSegBanner(seg) {
+  const el = $('segBanner');
+
+  // The SCD stream has no state machine and no 0xFF terminator - a block is
+  // exactly as long as its size word says, and that word is recomputed on save.
+  if (D.mode === 'scd') {
+    const n = segBytes(seg).length;
+    el.innerHTML = '<span style="font-size:11px;color:var(--dim)">block of ' + n +
+      ' bytes (size word rewritten on save)' +
+      (n !== seg.origBytes.length ? ', was ' + seg.origBytes.length : '') + '</span>';
+    return;
+  }
+
+  const last = seg.items[seg.items.length - 1];
+  const ends = last && last.kind === 'ctrl' && last.op === 0xFF;
+  const segIdx = D.segs.indexOf(seg);
+  const nextOwner = D.entrySeg.indexOf(segIdx + 1);
+
+  el.innerHTML = '';
+  const lab = document.createElement('span');
+  lab.style.cssText = 'font-size:11px;color:var(--dim)';
+  lab.textContent = ends
+    ? 'ends in 0xFF (slot deactivates here)'
+    : 'no 0xFF - execution runs on into ' +
+      (segIdx + 1 < D.segs.length
+        ? 'script ' + (nextOwner >= 0 ? nextOwner : '?') + "'s bytes"
+        : 'the end of the region');
+  el.appendChild(lab);
+
+  const sel = document.createElement('select');
+  sel.style.cssText = 'background:var(--panel2);border:1px solid var(--border);color:var(--fg);border-radius:5px;padding:2px 5px;font-size:11px;margin-left:10px';
+  [['0', 'read from state 0 (entry point)'],
+   ['1', 'read from state 1 (fell through mid-animation)'],
+   ['2', 'read from state 2 (fell through mid-movement)']].forEach(([v, t]) => {
+    const o = document.createElement('option');
+    o.value = v; o.textContent = t;
+    if (Number(v) === (seg.initState || 0)) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.onchange = () => {
+    seg.initState = Number(sel.value);
+    redecode(seg);
+    render();
+    setStatus('re-read this script starting in state ' + seg.initState, 'ok');
+  };
+  el.appendChild(sel);
+}
+
+// Render one field grid. `bytes` is the buffer the offsets index, `fbase` shifts
+// every f.at into it, and `label` names the edit in the status line. Used for the
+// item itself AND for each command inside a run_scd / exec_scd payload, which is
+// the only reason it is a function rather than an inline loop.
+function renderFieldGrid(specs, it, bytes, fbase, label) {
+  const grid = document.createElement('div');
+  grid.className = 'fields';
+  const commit = (f, v) => {
+    pushUndo();
+    writeField(bytes, f, v, fbase);
+    it.edited = true;
+    refreshItem(it);
+    render();
+    setStatus('set ' + f.label + (label ? ' (' + label + ')' : ''), 'ok');
+  };
+  for (const f of specs) {
+    if (f.at + fbase + (f.type === 'u16' || f.type === 'i16' ? 2 : 1) > bytes.length) continue;
+    const w = document.createElement('div');
+    w.className = 'field';
+    const lab = document.createElement('label');
+    lab.textContent = f.label + '  (+' + (f.at + fbase) + ')';
+    w.appendChild(lab);
+
+    let inp;
+    // 'flagid' is a free input, not a picker: room scripts use plenty of ids
+    // that have no constant, and forcing them through a select loses them.
+    const enumSrc = f.type === 'flagid' ? null : f.enum;
+    if (f.type === 'flagid') {
+      const bank = bytes[fbase];
+      const cur = readField(bytes, f, fbase);
+      inp = document.createElement('input');
+      inp.value = hx(cur, 2);
+      inp.title = flagTooltipFor(bank);
+      lab.title = inp.title;
+      lab.style.cursor = 'help';
+      const known = flagConstantName(bank, cur);
+      const res = document.createElement('div');
+      res.className = 'hint';
+      res.style.color = known ? '#7ec699' : '#c8a34a';
+      res.textContent = known ? '= ' + known
+                              : 'no constant for 0x' + hx(cur, 2) + ' in this bank '
+                                + '(fine - most ids are per-room)';
+      w.appendChild(inp);
+      w.appendChild(res);
+      inp.disabled = !!f.ro;
+      inp.onchange = () => {
+        const v = parseNum(inp.value);
+        if (v === null) { setStatus('not a number: ' + inp.value, 'err'); return; }
+        commit(f, v);
+      };
+      if (f.hint) {
+        const h = document.createElement('div');
+        h.className = 'hint';
+        h.textContent = f.hint;
+        w.appendChild(h);
+      }
+      grid.appendChild(w);
+      continue;
+    }
+    if (enumSrc) {
+      inp = document.createElement('select');
+      const cur = readField(bytes, f, fbase);
+      const keys = Object.keys(enumSrc).map(Number);
+      if (keys.indexOf(cur) < 0) keys.push(cur);
+      keys.sort((a, b) => a - b);
+      for (const k of keys) {
+        const o = document.createElement('option');
+        o.value = String(k);
+        o.textContent = enumSrc[k] !== undefined ? enumSrc[k] : (k + ' (unlisted)');
+        if (k === cur) o.selected = true;
+        inp.appendChild(o);
+      }
+    } else {
+      inp = document.createElement('input');
+      inp.value = String(readField(bytes, f, fbase));
+    }
+    inp.disabled = !!f.ro;
+    inp.onchange = () => {
+      const v = parseNum(inp.value);
+      if (v === null) { setStatus('not a number: ' + inp.value, 'err'); return; }
+      commit(f, v);
+    };
+    w.appendChild(inp);
+    if (f.hint) {
+      const h = document.createElement('div');
+      h.className = 'hint';
+      h.textContent = f.hint;
+      w.appendChild(h);
+    }
+    grid.appendChild(w);
+  }
+  return grid;
+}
+
+// Which payload rows are expanded. redecode() throws the item objects away and
+// rebuilds them, restoring `open` by byte offset, so this is keyed the same way
+// rather than on the object.
+const payloadOpen = new Set();
+function payKey(seg, it, rowOff) {
+  let o = 0;
+  for (const x of seg.items) { if (x === it) break; o += x.bytes.length; }
+  return o + ':' + rowOff;
+}
+
+function buildEditor(seg, it, idx) {
+  const body = document.createElement('div');
+  body.className = 'opbody';
+
+  // --- named fields
+  const specs = fieldsFor(it);
+  // scdFieldsFor() offsets are arg-relative (opcode excluded); event-VM
+  // fieldsFor() offsets are item-relative (opcode at 0). See readField.
+  const fbase = it.kind === 'scd' ? 1 : 0;
+  if (specs.length) body.appendChild(renderFieldGrid(specs, it, it.bytes, fbase, ''));
+
+  // --- SCD payload sub-editor
+  //
+  // run_scd (0x06) and exec_scd (0x07) carry a whole inline command stream. Each
+  // command gets its own expandable operand editor here, writing straight back
+  // into it.bytes - so the payload is editable field-by-field, not only as raw
+  // hex. Offsets shown are relative to this instruction's first byte, which is
+  // what the hex box at the bottom indexes too.
+  const pstart = payloadRange(it);
+  if (pstart >= 0) {
+    const sub = document.createElement('div');
+    sub.className = 'sublist';
+    const from = it.op === 0x06 ? 4 : 2;      // run_scd payload starts after the block-size word
+    const rows = scdListRows(it.bytes.slice(from), 0, from);
+
+    const lab = document.createElement('div');
+    lab.innerHTML = '<span class="pill">SCD payload</span> ' +
+      '<span class="cmd">' + rows.length + ' command' + (rows.length === 1 ? '' : 's') +
+      '</span> <span class="hint" style="display:inline">click a row to edit its operands</span>';
+    sub.appendChild(lab);
+
+    const rowbox = document.createElement('div');
+    rowbox.style.margin = '4px 0 2px';
+    for (const r of rows) {
+      const cmdBytes = it.bytes.slice(r.off, r.off + Math.max(r.len, 1));
+      const pspecs = r.bad ? [] : scdFieldsFor(r.op, cmdBytes);
+
+      const d = document.createElement('div');
+      d.className = 'payrow' + (r.bad ? ' pbad' : r.cond ? ' pcond' : '') +
+                    (pspecs.length ? ' clickable' : '');
+      const mk = (cls, txt) => {
+        const e = document.createElement('span');
+        e.className = cls;
+        e.textContent = txt;
+        if (cls === 'pnote' && txt) e.title = txt;
+        return e;
+      };
+      d.appendChild(mk('poff', '+' + hx(r.off)));
+      d.appendChild(mk('phex', r.hex));
+      d.appendChild(mk('pname', r.name));
+      d.appendChild(mk('pnote', r.bad ? 'unknown width - the stream stops here' : r.note));
+      rowbox.appendChild(d);
+
+      if (!pspecs.length) continue;
+
+      // Operand editor for this one command. `r.off + 1` shifts every
+      // arg-relative field offset onto the opcode's operands inside it.bytes.
+      const bodyEl = document.createElement('div');
+      bodyEl.className = 'paybody';
+      bodyEl.style.display = payloadOpen.has(payKey(seg, it, r.off)) ? '' : 'none';
+      bodyEl.appendChild(renderFieldGrid(pspecs, it, it.bytes, r.off + 1, r.name));
+      rowbox.appendChild(bodyEl);
+
+      d.onclick = () => {
+        const key = payKey(seg, it, r.off);
+        if (payloadOpen.has(key)) { payloadOpen.delete(key); bodyEl.style.display = 'none'; d.classList.remove('sel'); }
+        else { payloadOpen.add(key); bodyEl.style.display = ''; d.classList.add('sel'); }
+      };
+      if (payloadOpen.has(payKey(seg, it, r.off))) d.classList.add('sel');
+    }
+    sub.appendChild(rowbox);
+
+    const hi = document.createElement('input');
+    hi.className = 'hexin';
+    hi.style.marginTop = '6px';
+    hi.value = hexs(it.bytes.slice(from));
+    hi.onchange = () => {
+      const nb = parseHexBytes(hi.value);
+      if (nb === null) { setStatus('payload is not valid hex', 'err'); return; }
+      pushUndo();
+      it.bytes = it.bytes.slice(0, from).concat(nb);
+      fixWidthByte(it);
+      it.edited = true;
+      refreshItem(it);
+      render();
+      setStatus('payload rewritten, width byte = ' + hx(it.bytes[1]), 'ok');
+    };
+    sub.appendChild(hi);
+    sub.appendChild(Object.assign(document.createElement('div'), {
+      className: 'hint',
+      textContent: 'whole payload as hex - use this to add or remove commands; '
+                 + 'the width byte is recomputed on save',
+    }));
+    body.appendChild(sub);
+  }
+
+  // --- raw hex, always available
+  const raw = document.createElement('div');
+  raw.className = 'field';
+  raw.style.marginTop = '8px';
+  raw.innerHTML = '<label>raw bytes</label>';
+  const rin = document.createElement('input');
+  rin.className = 'hexin';
+  rin.value = hexs(it.bytes);
+  rin.onchange = () => {
+    const nb = parseHexBytes(rin.value);
+    if (nb === null || !nb.length) { setStatus('not valid hex', 'err'); return; }
+    pushUndo();
+    it.bytes = nb;
+    it.edited = true;
+    refreshItem(it);
+    render();
+    setStatus('raw bytes replaced - the rest of the script was re-decoded', 'warn');
+  };
+  raw.appendChild(rin);
+  const rh = document.createElement('div');
+  rh.className = 'hint';
+  rh.textContent = 'Changing the length here shifts everything after it. The opcode list re-decodes from this segment start, so check the following rows still read sensibly.';
+  raw.appendChild(rh);
+  body.appendChild(raw);
+
+  // --- structural buttons
+  const btns = document.createElement('div');
+  btns.className = 'rowbtns';
+
+  const sel = document.createElement('select');
+  sel.style.cssText = 'background:var(--panel2);border:1px solid var(--border);color:var(--fg);border-radius:5px;padding:3px 6px;font-size:12px';
+  const stateForInsert = it.kind === 'ctrl' ? (it.state < 0 ? 0 : it.state) : (it.state < 0 ? 0 : it.state);
+  const palette = D.mode === 'scd' ? scdTemplates() : templates(stateForInsert);
+  for (const t of palette) {
+    const o = document.createElement('option');
+    o.textContent = t.label;
+    o.value = t.bytes ? t.bytes.join(',') : '';
+    if (!t.bytes) o.disabled = true;
+    sel.appendChild(o);
+  }
+  btns.appendChild(sel);
+
+  const insAfter = mkBtn('Insert after', () => {
+    if (!sel.value) return;
+    pushUndo();
+    const bytes = sel.value.split(',').map(Number);
+    const nit = D.mode === 'scd'
+      ? mkItem('scd', bytes[0], -1, bytes, scdCmdName(bytes[0]), '')
+      : mkItem('op', bytes[0], stateForInsert, bytes, 'new', '');
+    nit.edited = true;
+    seg.items.splice(idx + 1, 0, nit);
+    redecode(seg);
+    render();
+    setStatus('inserted', 'ok');
+  });
+  const insBefore = mkBtn('Insert before', () => {
+    if (!sel.value) return;
+    pushUndo();
+    const bytes = sel.value.split(',').map(Number);
+    const nit = D.mode === 'scd'
+      ? mkItem('scd', bytes[0], -1, bytes, scdCmdName(bytes[0]), '')
+      : mkItem('op', bytes[0], stateForInsert, bytes, 'new', '');
+    nit.edited = true;
+    seg.items.splice(idx, 0, nit);
+    redecode(seg);
+    render();
+    setStatus('inserted', 'ok');
+  });
+  btns.appendChild(insBefore);
+  btns.appendChild(insAfter);
+  btns.appendChild(mkBtn('Duplicate', () => {
+    pushUndo();
+    const c = mkItem(it.kind, it.op, it.state, it.bytes.slice(), it.name, it.note);
+    c.edited = true;
+    seg.items.splice(idx + 1, 0, c);
+    redecode(seg);
+    render();
+  }));
+  btns.appendChild(mkBtn('Move up', () => {
+    if (idx === 0) return;
+    pushUndo();
+    seg.items.splice(idx - 1, 0, seg.items.splice(idx, 1)[0]);
+    redecode(seg); render();
+  }));
+  btns.appendChild(mkBtn('Move down', () => {
+    if (idx >= seg.items.length - 1) return;
+    pushUndo();
+    seg.items.splice(idx + 1, 0, seg.items.splice(idx, 1)[0]);
+    redecode(seg); render();
+  }));
+  const del = mkBtn('Delete', () => {
+    pushUndo();
+    seg.items.splice(idx, 1);
+    redecode(seg); render();
+    setStatus('deleted', 'warn');
+  });
+  del.classList.add('danger');
+  btns.appendChild(del);
+
+  body.appendChild(btns);
+
+  if (it.kind === 'ctrl' && it.op === 0xFC) {
+    const w = document.createElement('div');
+    w.className = 'warnline';
+    w.textContent = 'call is a forward relative jump measured from the opcode. Its width byte is the jump distance AND the payload length, so it is recomputed automatically - do not hand-edit byte 1.';
+    body.appendChild(w);
+  }
+  if (it.kind === 'data') {
+    const w = document.createElement('div');
+    w.className = 'warnline';
+    w.textContent = 'Raw bytes: the decoder could not continue here. They are carried through untouched.';
+    body.appendChild(w);
+  }
+
+  return body;
+}
+
+function mkBtn(label, fn) {
+  const b = document.createElement('button');
+  b.className = 'btn small';
+  b.textContent = label;
+  b.onclick = fn;
+  return b;
+}
+
+// Re-run the decoder over a segment's current bytes, preserving which rows were
+// open where the offsets still line up.
+function redecode(seg) {
+  const bytes = new Uint8Array(segBytes(seg));
+  const openOffs = [];
+  let o = 0;
+  for (const it of seg.items) { if (it.open) openOffs.push(o); o += it.bytes.length; }
+  const editedOffs = [];
+  o = 0;
+  for (const it of seg.items) { if (it.edited) editedOffs.push(o); o += it.bytes.length; }
+
+  seg.items = D.mode === 'scd'
+    ? decodeScdSegment(bytes, 0, bytes.length)
+    : decodeSegment(bytes, 0, bytes.length, seg.initState || 0);
+  o = 0;
+  for (const it of seg.items) {
+    if (openOffs.indexOf(o) >= 0) it.open = true;
+    if (editedOffs.indexOf(o) >= 0) it.edited = true;
+    o += it.bytes.length;
+  }
+}
+
+// After an in-place field edit the note text is stale; refresh just this item,
+// then re-decode so a width change propagates.
+function refreshItem(it) {
+  const seg = curSeg();
+  redecode(seg);
+}
+
+// ===========================================================================
+// Wiring
+// ===========================================================================
+// Which sections this file actually has, so the selector can grey out the rest.
+// A pointer of 0, or one that parses to nothing, means the room has no script
+// there - plenty of rooms ship an empty main or event section.
+function sectionAvailability(name, bytes) {
+  return SCRIPT_SECTIONS.map(sec => {
+    try {
+      const d = parseRdt(name, bytes, sec.off);
+      return { ...sec, ok: true, count: d.entries.length };
+    } catch (e) {
+      return { ...sec, ok: false, why: String(e.message || e) };
+    }
+  });
+}
+
+function renderSectionSelect(avail) {
+  const sel = $('secsel');
+  sel.innerHTML = '';
+  for (const a of avail) {
+    const o = document.createElement('option');
+    o.value = String(a.off);
+    o.textContent = a.label + (a.ok ? '  [' + a.count + ']' : '  - empty');
+    o.disabled = !a.ok;
+    if (a.off === curSection) o.selected = true;
+    sel.appendChild(o);
+  }
+}
+
+// Parse `section` out of the already-loaded file. Edits live only in D, so a
+// switch discards them - say so rather than losing them silently.
+function openSection(section, force) {
+  if (!loaded) return;
+  if (!force && anyDirty() &&
+      !confirm('This section has unsaved edits.\n\n' +
+               'Switching discards them - download the modified RDT first if you want to keep them.\n\n' +
+               'Switch anyway?')) {
+    renderSectionSelect(sectionAvailability(loaded.name, loaded.bytes));
+    return;
+  }
+  try {
+    const next = parseRdt(loaded.name, loaded.bytes, section);
+    D = next;
+    curSection = section;
+    selScript = 0;
+    undoStack.length = 0; redoStack.length = 0;
+    $('app').classList.remove('hidden');
+    $('dumpPanel').classList.add('hidden');
+    renderSectionSelect(sectionAvailability(loaded.name, loaded.bytes));
+    render();
+    const sec = SCRIPT_SECTIONS.filter(x => x.off === section)[0];
+    setStatus('loaded ' + D.entries.length + (D.mode === 'scd' ? ' blocks' : ' scripts') +
+              ' from ' + (sec ? sec.label : hx(section)), 'ok');
+  } catch (e) {
+    setStatus(String(e.message || e), 'err');
+    renderSectionSelect(sectionAvailability(loaded.name, loaded.bytes));
+  }
+}
+
+function loadFile(file) {
+  const fr = new FileReader();
+  fr.onload = () => {
+    try {
+      const bytes = new Uint8Array(fr.result);
+      loaded = { name: file.name, bytes };
+      const avail = sectionAvailability(file.name, bytes);
+      // Prefer the section already selected; otherwise the first one with content.
+      const want = avail.filter(a => a.off === curSection && a.ok)[0] ||
+                   avail.filter(a => a.ok)[0];
+      if (!want) throw new Error('this RDT has no readable script section (0x60/0x64/0x68 are all empty)');
+      curSection = want.off;
+      openSection(want.off, true);
+    } catch (e) {
+      setStatus(String(e.message || e), 'err');
+      $('app').classList.add('hidden');
+      alert('Could not read this RDT:\n\n' + (e.message || e));
+    }
+  };
+  fr.readAsArrayBuffer(file);
+}
+
+$('drop').onclick = () => $('fileinput').click();
+$('fileinput').onchange = e => { if (e.target.files[0]) loadFile(e.target.files[0]); };
+$('drop').ondragover = e => { e.preventDefault(); $('drop').classList.add('over'); };
+$('drop').ondragleave = () => $('drop').classList.remove('over');
+$('drop').ondrop = e => {
+  e.preventDefault();
+  $('drop').classList.remove('over');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+};
+
+$('secsel').onchange = e => openSection(Number(e.target.value), false);
+
+$('filter').oninput = () => renderOps();
+$('btnCollapse').onclick = () => { for (const s of D.segs) for (const i of s.items) i.open = false; renderOps(); };
+
+$('btnUndo').onclick = () => {
+  if (!undoStack.length) return;
+  redoStack.push(snapshot());
+  restore(undoStack.pop());
+  render();
+  setStatus('undone', 'warn');
+};
+$('btnRedo').onclick = () => {
+  if (!redoStack.length) return;
+  undoStack.push(snapshot());
+  restore(redoStack.pop());
+  render();
+  setStatus('redone', 'warn');
+};
+$('btnRevert').onclick = () => {
+  if (!confirm('Discard every edit and reload the file as it was parsed?')) return;
+  pushUndo();
+  for (const seg of D.segs) {
+    const b = new Uint8Array(seg.origBytes);
+    seg.items = D.mode === 'scd'
+      ? decodeScdSegment(b, 0, b.length)
+      : decodeSegment(b, 0, b.length, seg.initState || 0);
+  }
+  render();
+  setStatus('reverted', 'warn');
+};
+
+$('btnNewScript').onclick = () => {
+  pushUndo();
+  if (D.mode === 'scd') {
+    // An SCD block of size 0 IS the chain terminator, so the new block gets a
+    // nop - an empty one would cut off every block after it.
+    const seg = { origRel: -1, initState: 0, origBytes: [0x00],
+                  items: decodeScdSegment(new Uint8Array([0x00]), 0, 1) };
+    D.segs.push(seg);
+    D.entries.push(0);
+    D.entrySeg.push(D.segs.length - 1);
+    selScript = D.entries.length - 1;
+    render();
+    setStatus('appended block ' + selScript + ' (one nop) - the chain keeps its terminator', 'ok');
+    return;
+  }
+  const seg = { origRel: -1, initState: 0, origBytes: [],
+                items: decodeSegment(new Uint8Array([0xFF]), 0, 1, 0) };
+  D.segs.push(seg);
+  D.entries.push(0);
+  D.entrySeg.push(D.segs.length - 1);
+  selScript = D.entries.length - 1;
+  render();
+  setStatus('appended script ' + selScript + ' (one 0xFF end opcode) - existing indices are unchanged', 'ok');
+};
+
+$('btnDump').onclick = () => {
+  $('dumpText').textContent = dumpText();
+  $('dumpPanel').classList.remove('hidden');
+  $('dumpPanel').scrollIntoView({ behavior: 'smooth' });
+};
+
+$('btnSave').onclick = () => {
+  const r = buildFile();
+  const blob = new Blob([r.out], { type: 'application/octet-stream' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = D.name.replace(/\.rdt$/i, '') + '.edited.rdt';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  setStatus(r.fits
+    ? 'written in place, ' + r.regionSize + ' bytes, file size unchanged'
+    : 'region did not fit - appended at ' + hx(r.newTableOff, 8) + ' and header 0x68 repointed (file grew to ' + r.out.length + ' bytes)',
+    r.fits ? 'ok' : 'warn');
+};
+</script>
+</body>
+</html>

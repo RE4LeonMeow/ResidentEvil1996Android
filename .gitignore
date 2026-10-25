@@ -1,0 +1,37 @@
+# Toolchains and build outputs
+/build/
+/dist/
+__pycache__/
+*.pyc
+*.log
+.vs/
+.gradle/
+android/.gradle/
+android/local.properties
+# Private game data, test captures and signing keys
+/assets/
+/game/
+/SAVE/
+/private-re1-testing/
+*.avi
+*.mp4
+*.wav
+*.ogg
+*.rdt
+*.RDT
+*.tim
+*.TIM
+*.pak
+*.dat
+*.cap
+*.r1h
+*.keystore
+*.jks
+config.ini
+re1.lock
+.DS_Store
+# Generated WebView engine/HD worker (built from included sources)
+android/app/src/main/assets/web/residentevil.js
+android/app/src/main/assets/web/residentevil.wasm
+android/app/src/main/assets/web/hd-resize.js
+android/app/src/main/assets/web/hd-resize.wasm

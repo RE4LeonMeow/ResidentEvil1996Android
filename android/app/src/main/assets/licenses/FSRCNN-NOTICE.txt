@@ -1,0 +1,19 @@
+Pretrained FSRCNN x4 model
+
+Source: Saafke/FSRCNN_Tensorflow
+https://github.com/Saafke/FSRCNN_Tensorflow
+Pinned revision: 6a4812c4ef1c4f5947d79beafa32a05a6eb4a94d
+Graph: models/FSRCNN_x4.pb
+SHA-256: 5c68d18db561aed8ead4ffedf1b897ea615baaf60ebf6c35f8e641f8fa4a21bf
+License: Apache-2.0 (FSRCNN.txt)
+
+The original pretrained graph is converted, without retraining, to C++ float
+constants by tools/hd/import_fsrcnn.py. Port additions implement tiled SIMD
+inference, alpha-preserving colour reconstruction, final-size resampling and
+optional bounded edge sharpening after neural reconstruction.
+No TensorFlow or OpenCV runtime is distributed with this port.
+
+Model architecture: Chao Dong, Chen Change Loy, Xiaoou Tang,
+"Accelerating the Super-Resolution Convolutional Neural Network", ECCV 2016.
+The upstream implementation uses a sub-pixel layer in place of transposed
+convolution (Shi et al., CVPR 2016).

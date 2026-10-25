@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RE1 PC Save Editor</title>
+<style>
+  :root {
+    --bg: #101410; --panel: #182018; --panel2: #1e281e;
+    --fg: #c8d4c8; --dim: #7a8a7a; --accent: #6fc46f; --red: #d06060;
+    --border: #2c3c2c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px; background: var(--bg); color: var(--fg);
+    font-family: "Segoe UI", system-ui, sans-serif; font-size: 14px;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; color: var(--accent); letter-spacing: 1px; }
+  h2 { font-size: 13px; margin: 18px 0 8px; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  .sub { color: var(--dim); font-size: 12px; margin-bottom: 16px; }
+  #drop {
+    border: 2px dashed var(--border); border-radius: 8px; padding: 24px;
+    text-align: center; color: var(--dim); cursor: pointer; margin-bottom: 16px;
+    transition: border-color .15s, color .15s;
+  }
+  #drop.over { border-color: var(--accent); color: var(--accent); }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; margin-bottom: 12px;
+  }
+  .files { display: flex; gap: 8px; flex-wrap: wrap; }
+  .filebtn {
+    background: var(--panel2); border: 1px solid var(--border); color: var(--fg);
+    border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px;
+  }
+  .filebtn.active { border-color: var(--accent); color: var(--accent); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px 16px; }
+  .field label { display: block; color: var(--dim); font-size: 12px; margin-bottom: 2px; }
+  .field input, .field select {
+    width: 100%; background: var(--panel2); border: 1px solid var(--border);
+    color: var(--fg); border-radius: 5px; padding: 4px 6px; font-size: 13px;
+  }
+  .field input:focus, .field select:focus { outline: 1px solid var(--accent); }
+  .hint { color: var(--dim); font-size: 11px; margin-top: 2px; }
+  table.items { width: 100%; border-collapse: collapse; }
+  table.items th {
+    text-align: left; color: var(--dim); font-size: 11px; font-weight: normal;
+    text-transform: uppercase; padding: 2px 6px; border-bottom: 1px solid var(--border);
+  }
+  table.items td { padding: 3px 6px; border-bottom: 1px solid #223022; }
+  table.items select, table.items input {
+    background: var(--panel2); border: 1px solid var(--border); color: var(--fg);
+    border-radius: 4px; padding: 2px 4px; font-size: 12px; width: 100%;
+  }
+  details { margin-top: 8px; }
+  summary { cursor: pointer; color: var(--dim); font-size: 12px; }
+  .hexdump {
+    font-family: Consolas, monospace; font-size: 11px; color: var(--dim);
+    white-space: pre; overflow-x: auto; background: var(--panel2); padding: 8px;
+    border-radius: 6px; border: 1px solid var(--border); max-height: 240px; overflow-y: auto;
+  }
+  .hexedit {
+    font-family: Consolas, monospace; font-size: 12px; background: var(--panel2);
+    border: 1px solid var(--border); color: var(--fg); border-radius: 5px;
+    padding: 6px; width: 100%;
+  }
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+  .btn {
+    background: var(--panel2); border: 1px solid var(--accent); color: var(--accent);
+    border-radius: 6px; padding: 7px 16px; cursor: pointer; font-size: 13px;
+  }
+  .btn:hover { background: #243424; }
+  .btn:disabled { border-color: var(--border); color: var(--dim); cursor: default; }
+  #status { color: var(--dim); font-size: 12px; }
+  #status.ok { color: var(--accent); }
+  #status.err { color: var(--red); }
+  .section-toggle { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<h1>RESIDENT EVIL — PC SAVE EDITOR</h1>
+<div class="sub">Edit <b>savedat1.dat</b> … <b>savedat8.dat</b> (2690-byte RE1 PC save files). Open one from the
+<b>SAVE</b> folder (or <b>assets\save</b> in the dev tree), edit, download.</div>
+
+<div id="drop">Drop save file(s) here, or click to browse (.dat / any file)</div>
+<input type="file" id="picker" accept=".dat,.DAT" multiple style="display:none">
+
+<div class="panel">
+  <div class="files" id="filelist"></div>
+  <div id="nosel" style="color:var(--dim); margin-top:8px;">No file loaded.</div>
+  <div id="editor" style="display:none">
+    <div class="toolbar">
+      <button class="btn" id="btnDownload">⬇ Download modified save</button>
+      <span id="status"></span>
+    </div>
+
+    <h2>Character &amp; Location</h2>
+    <div class="grid">
+      <div class="field"><label>Character</label><select id="f_charId"></select></div>
+      <div class="field"><label>Character model id</label><input id="f_charModel" type="number" min="0" max="255"></div>
+      <div class="field"><label>Stage</label><input id="f_stage" type="number" min="0" max="6"></div>
+      <div class="field"><label>Room</label><input id="f_room" type="number" min="0" max="31"></div>
+      <div class="field"><label>Camera</label><input id="f_camera" type="number" min="0" max="31"></div>
+      <div class="field"><label>Save-screen location</label><input id="f_loc" disabled></div>
+    </div>
+
+    <h2>Player State</h2>
+    <div class="grid">
+      <div class="field"><label>Position X</label><input id="f_posX" type="number" min="-32768" max="32767"></div>
+      <div class="field"><label>Position Z</label><input id="f_posZ" type="number" min="-32768" max="32767"></div>
+      <div class="field"><label>Direction (0–4095)</label><input id="f_dir" type="number" min="0" max="4095"></div>
+      <div class="field"><label>Direction (degrees)</label><input id="f_dirDeg" type="number" min="0" max="359.9" step="0.1"></div>
+      <div class="field"><label>Health</label><input id="f_health" type="number" min="0" max="65535"></div>
+      <div class="field"><label>Health status flags (hex)</label><input id="f_healthFlags" type="text"></div>
+      <div class="field"><label>Game timer (frames @30fps)</label><input id="f_timer" type="number" min="0" max="4294967295"></div>
+      <div class="field"><label>Game clear time (editable)</label>
+        <input id="f_timerStr" placeholder="1:23:45">
+        <div class="hint" id="timerHint"></div>
+      </div>
+      <div class="field"><label>Saves counter</label><input id="f_saves" type="number" min="0" max="99"></div>
+      <div class="field"><label>Countdown timer</label><input id="f_countdown" type="number" min="0" max="65535"></div>
+      <div class="field"><label>Selected item</label><select id="f_selectedItem"></select></div>
+      <div class="field"><label>Held items count</label><input id="f_held" type="number" min="0" max="255"></div>
+    </div>
+
+    <h2>Equipped / Ink Ribbon</h2>
+    <div class="grid">
+      <div class="field"><label>Equipped item</label><select id="f_equipped"></select></div>
+      <div class="field"><label>Room item backup</label><input id="f_roomItemBk" type="number" min="0" max="255"></div>
+    </div>
+
+    <h2>Inventory <span id="invCountLabel" style="color:var(--dim);font-weight:normal"></span></h2>
+    <table class="items">
+      <tr><th></th><th>Item</th><th style="width:90px">Qty</th></tr>
+      <tbody id="invRows"></tbody>
+    </table>
+
+    <details>
+      <summary class="section-toggle">Itembox (48 slots)</summary>
+      <table class="items">
+        <tr><th></th><th>Item</th><th style="width:80px">Qty</th></tr>
+        <tbody id="boxRows"></tbody>
+      </table>
+    </details>
+
+    <details>
+      <summary class="section-toggle">Rebecca items (6 slots)</summary>
+      <table class="items">
+        <tr><th></th><th>Item</th><th style="width:80px">Qty</th></tr>
+        <tbody id="rebRows"></tbody>
+      </table>
+    </details>
+    <div class="hint" style="margin-top:4px">Item slots are 2 bytes (item id + quantity). Jill carries 8 items —
+    her last 2 slots share memory with the Rebecca region (0x330..), so the same bytes appear in both tables.
+    The itembox is 48 slots at 0x2C4.</div>
+
+    <h2>Flags</h2>
+    <div class="grid">
+      <div class="field"><label>Scenario flags (0x2A0, 16 bytes hex)</label><input id="f_scenarioFlags" type="text" class="hexedit"></div>
+      <div class="field"><label>Room flags (0x2B0, 20 bytes hex)</label><input id="f_roomFlags" type="text" class="hexedit"></div>
+      <div class="field"><label>Locks flags (0x254, 8 bytes hex)</label><input id="f_locksFlags" type="text" class="hexedit"></div>
+      <div class="field"><label>Enemies flags (0x25C, 32 bytes hex)</label><input id="f_enemiesFlags" type="text" class="hexedit"></div>
+      <div class="field"><label>Room items flags (0x27C, 32 bytes hex)</label><input id="f_roomItemsFlags" type="text" class="hexedit"></div>
+      <div class="field"><label>Scenario flags 2 (0x234, 32 bytes hex)</label><input id="f_scenarioFlags2" type="text" class="hexedit"></div>
+    </div>
+
+    <h2>Input</h2>
+    <div class="grid">
+      <div class="field"><label>Key bindings (0x800, 32 bytes hex — VK codes)</label><input id="f_keyBinds" type="text" class="hexedit"></div>
+    </div>
+
+    <h2>Raw hex dump</h2>
+    <div class="hexdump" id="hexdump"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// ============================================================================
+// RE1 PC save file layout (2690 bytes = 0xA82)
+// Offsets verified against the decomp (src/game/SaveLoadScreen.cpp,
+// src/game/BioCard.h) and real GOG saves.
+// ============================================================================
+const SAVE_SIZE = 0xA82;
+
+const ITEMS = [
+  [0x00, "— empty —"],
+  [0x01, "Knife"], [0x02, "Beretta"], [0x03, "Shotgun"],
+  [0x04, "Colt Python (dum)"], [0x05, "Colt Python (mag)"],
+  [0x06, "Flamethrower"], [0x07, "Bazooka (explosive)"],
+  [0x08, "Bazooka (acid)"], [0x09, "Bazooka (flame)"], [0x0A, "Rocket launcher"],
+  [0x0B, "Clip"], [0x0C, "Shells"], [0x0D, "Dum-dum rounds"],
+  [0x0E, "Magnum rounds"], [0x0F, "Fuel"], [0x10, "Explosive rounds"],
+  [0x11, "Acid rounds"], [0x12, "Flame rounds"],
+  [0x13, "Empty bottle"], [0x14, "Bottle of water"], [0x15, "UMB No.2"],
+  [0x16, "UMB No.4"], [0x17, "UMB No.7"], [0x18, "UMB No.13"],
+  [0x19, "Yellow-6"], [0x1A, "NP-003"], [0x1B, "V-JOLT"],
+  [0x1C, "Broken shotgun"], [0x1D, "Square crank"], [0x1E, "Hex crank"],
+  [0x1F, "Emblem"], [0x20, "Gold emblem"], [0x21, "Blue jewel"],
+  [0x22, "Red jewel"], [0x23, "Music notes"], [0x24, "Wolf medal"],
+  [0x25, "Eagle medal"], [0x26, "Chemical"], [0x27, "Battery"],
+  [0x28, "MO disk"], [0x29, "Wind crest"], [0x2A, "Flare"],
+  [0x2B, "Slides"], [0x2C, "Moon crest"], [0x2D, "Star crest"],
+  [0x2E, "Sun crest"],
+  [0x2F, "Ink ribbons"], [0x30, "Lighter"], [0x31, "Lockpick"], [0x32, "Oil"],
+  [0x33, "Sword key"], [0x34, "Armor key"], [0x35, "Shield key"],
+  [0x36, "Helmet key"], [0x37, "Lab key A"], [0x38, "Special key"],
+  [0x39, "Dormitory key A"], [0x3A, "Dormitory key B"], [0x3B, "C.Room key"],
+  [0x3C, "Lab key B"], [0x3D, "Desk key"],
+  [0x3E, "Red book"], [0x3F, "Doom book 2"], [0x40, "Doom book 1"],
+  [0x41, "First-aid spray"], [0x42, "Serum"], [0x43, "Red herb"],
+  [0x44, "Green herb"], [0x45, "Blue herb"], [0x46, "Mix: blue+red"],
+  [0x47, "Mix: 2 greens"], [0x48, "Mix: green+blue"], [0x49, "Mix: green+red+blue"],
+  [0x4A, "Mix: 3 greens"], [0x4B, "Mix: 2 greens+red"],
+  [0x4C, "Pick axe"], [0x4D, "Comm radio"], [0x4E, "Bottle of water 2"],
+  [0x4F, "Eagle & wolf book"],
+];
+const ITEM_BY_ID = new Map(ITEMS);
+const ITEM_MAX = 0x6E;
+
+const CHARS = [["0", "Chris"], ["1", "Jill"]];
+
+// GetSaveLocationIndex (0x00494000) — mirrors the save screen's location names
+function saveLocationName(stage, room) {
+  let idx = stage % 5;
+  if (idx === 0) {
+    if (room === 6) idx = 1;
+    if (idx === 0 && room === 0x18) idx = 5;
+  }
+  if (idx === 2 && room === 7) idx = 6;
+  const names = [
+    "M.Room 1F", "M.Hall 1F", "Courtyard Room B1", "Guardhouse 1F",
+    "Laboratory B3", "M.Storeroom 1F", "Courtyard Path B1",
+  ];
+  return names[idx];
+}
+
+// ============================================================================
+// File state
+// ============================================================================
+const files = new Map();   // name -> {name, bytes: Uint8Array}
+let active = null;
+
+function u16(o) { return active.bytes[o] | (active.bytes[o + 1] << 8); }
+function s16(o) { const v = u16(o); return v >= 0x8000 ? v - 0x10000 : v; }
+function u32(o) { return (active.bytes[o] | (active.bytes[o + 1] << 8) |
+                          (active.bytes[o + 2] << 16) | (active.bytes[o + 3] << 24)) >>> 0; }
+function setU16(o, v) { active.bytes[o] = v & 0xFF; active.bytes[o + 1] = (v >> 8) & 0xFF; }
+function setU32(o, v) {
+  v = v >>> 0;
+  active.bytes[o] = v & 0xFF; active.bytes[o + 1] = (v >>> 8) & 0xFF;
+  active.bytes[o + 2] = (v >>> 16) & 0xFF; active.bytes[o + 3] = (v >>> 24) & 0xFF;
+}
+function setByte(o, v) { active.bytes[o] = v & 0xFF; }
+
+function hexBytes(o, n) {
+  let s = "";
+  for (let i = 0; i < n; i++) s += active.bytes[o + i].toString(16).padStart(2, "0");
+  return s;
+}
+function setHexBytes(o, n, s) {
+  const clean = s.replace(/[^0-9a-fA-F]/g, "");
+  if (clean.length !== n * 2) throw new Error("expected " + n + " bytes of hex");
+  for (let i = 0; i < n; i++) active.bytes[o + i] = parseInt(clean.substr(i * 2, 2), 16);
+}
+
+// ============================================================================
+// UI wiring
+// ============================================================================
+const $ = (id) => document.getElementById(id);
+const num = (id) => {
+  const el = $(id);
+  let v = parseInt(el.value, 10);
+  if (isNaN(v)) v = 0;
+  return v;
+};
+
+function fillItemSelect(sel, selId) {
+  sel.innerHTML = "";
+  for (const [id, name] of ITEMS) {
+    const opt = document.createElement("option");
+    opt.value = id;
+    opt.textContent = id === 0 ? name : (id.toString(16).padStart(2, "0").toUpperCase() + " — " + name);
+    if (id === selId) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
+function buildItemRows(tbody, offset, count, baseLabel) {
+  tbody.innerHTML = "";
+  for (let i = 0; i < count; i++) {
+    // ItemSlot = 2 bytes: item id + quantity (see Types.h ItemSlot)
+    const tr = document.createElement("tr");
+    const tdL = document.createElement("td");
+    tdL.textContent = baseLabel + " " + i;
+    const tdI = document.createElement("td");
+    const sel = document.createElement("select");
+    sel.dataset.off = offset + i * 2;
+    const tdQ = document.createElement("td");
+    const qty = document.createElement("input");
+    qty.type = "number"; qty.min = 0; qty.max = 255; qty.value = "0";
+    qty.dataset.off = offset + i * 2 + 1;
+    tdI.appendChild(sel);
+    tdQ.appendChild(qty);
+    tr.appendChild(tdL); tr.appendChild(tdI); tr.appendChild(tdQ);
+    tbody.appendChild(tr);
+    const refresh = () => {
+      const id = active.bytes[+sel.dataset.off];
+      fillItemSelect(sel, id);
+      qty.value = active.bytes[+qty.dataset.off];
+    };
+    sel.addEventListener("change", () => { setByte(+sel.dataset.off, +sel.value); refresh(); markDirty(); });
+    qty.addEventListener("change", () => { setByte(+qty.dataset.off, +qty.value); markDirty(); });
+    refresh();
+  }
+}
+
+// Chris carries 6 items, Jill 8 (see rearrange_item_slots: (4 - (id==1?0:1)) * 2)
+function inventorySlotCount() {
+  return (active.bytes[0x22B] & 3) === 1 ? 8 : 6;
+}
+
+function markDirty() { $("status").textContent = "modified — download to save"; $("status").className = "ok"; }
+
+function loadFields() {
+  // character
+  const charSel = $("f_charId");
+  charSel.innerHTML = "";
+  for (const [id, name] of CHARS) {
+    const opt = document.createElement("option");
+    opt.value = id; opt.textContent = name;
+    if (id === String(active.bytes[0x22B] & 3)) opt.selected = true;
+    charSel.appendChild(opt);
+  }
+  $("f_charModel").value = active.bytes[0x209];
+  $("f_stage").value = active.bytes[0x200];
+  $("f_room").value = active.bytes[0x201];
+  $("f_camera").value = active.bytes[0x202];
+  $("f_loc").value = saveLocationName(active.bytes[0x200], active.bytes[0x201]);
+
+  $("f_posX").value = s16(0x22C);
+  $("f_posZ").value = s16(0x22E);
+  const dir = u16(0x230);
+  $("f_dir").value = dir;
+  $("f_dirDeg").value = (dir / 4096 * 360).toFixed(1);
+  $("f_health").value = u16(0x21E);
+  $("f_healthFlags").value = active.bytes[0x232].toString(16).padStart(2, "0");
+  const t = u32(0x224);
+  $("f_timer").value = t;
+  $("f_timerStr").value = timerToString(t);
+  updateTimerHint(t);
+  $("f_saves").value = active.bytes[0x228];
+  $("f_countdown").value = u16(0x21C);
+  fillItemSelect($("f_selectedItem"), active.bytes[0x206]);
+  $("f_held").value = active.bytes[0x207];
+
+  fillItemSelect($("f_equipped"), active.bytes[0x229]);
+  $("f_roomItemBk").value = active.bytes[0x22A];
+
+  buildItemRows($("invRows"), 0x324, inventorySlotCount(), "Inv");
+  $("invCountLabel").textContent = "(" + inventorySlotCount() + " slots)";
+  buildItemRows($("boxRows"), 0x2C4, 48, "Box");
+  buildItemRows($("rebRows"), 0x330, 6, "Reb");
+
+  $("f_scenarioFlags").value = hexBytes(0x2A0, 16);
+  $("f_roomFlags").value = hexBytes(0x2B0, 20);
+  $("f_locksFlags").value = hexBytes(0x254, 8);
+  $("f_enemiesFlags").value = hexBytes(0x25C, 32);
+  $("f_roomItemsFlags").value = hexBytes(0x27C, 32);
+  $("f_scenarioFlags2").value = hexBytes(0x234, 32);
+  $("f_keyBinds").value = hexBytes(0x800, 32);
+
+  renderHex();
+  $("status").textContent = "loaded " + active.name;
+  $("status").className = "ok";
+}
+
+// The game clock reads this field at 30 ticks/second: 0x1e per second,
+// 0x708 per minute, 0x1a5e0 per hour (ending_result_draw, 0x00410f40).
+const TICKS_PER_SEC = 30;
+
+// Accepts "H:MM:SS", "MM:SS", "SS", or "1h 23m 45s". Returns frames.
+function stringToTimer(str) {
+  const s = String(str).trim().toLowerCase();
+  if (s === "") throw new Error("time: empty");
+
+  let h = 0, m = 0, sec = 0;
+  const hms = s.match(/^(?:(\d+)\s*h)?\s*(?:(\d+)\s*m)?\s*(?:(\d+)\s*s)?$/);
+  if (hms && (hms[1] || hms[2] || hms[3])) {
+    h = +(hms[1] || 0); m = +(hms[2] || 0); sec = +(hms[3] || 0);
+  } else {
+    const parts = s.split(":");
+    if (parts.length > 3 || parts.some((p) => !/^\d+$/.test(p.trim()))) {
+      throw new Error("time: use HH:MM:SS");
+    }
+    const n = parts.map((p) => parseInt(p, 10));
+    if (n.length === 3)      { h = n[0]; m = n[1]; sec = n[2]; }
+    else if (n.length === 2) { m = n[0]; sec = n[1]; }
+    else                     { sec = n[0]; }
+  }
+  // Minutes/seconds may carry (90 in the seconds slot means 1:30), but the
+  // total still has to fit the DWORD the save block holds.
+  const total = (h * 3600 + m * 60 + sec) * TICKS_PER_SEC;
+  if (!isFinite(total) || total < 0 || total > 0xFFFFFFFF) throw new Error("time: out of range");
+  return total >>> 0;
+}
+
+// The ending grants the infinite weapon below 0x69780 ticks (ending_state,
+// 0x00410c7a) - flag the threshold so an edit does not silently cross it.
+const INFINITE_WEAPON_CUTOFF = 0x69780;
+
+function updateTimerHint(frames) {
+  const el = $("timerHint");
+  if (!el) return;
+  const under = frames < INFINITE_WEAPON_CUTOFF;
+  el.textContent = frames + " ticks @30/s \u00b7 " +
+    (under ? "under" : "over") + " the 04:00:00 infinite-weapon cutoff";
+}
+
+function timerToString(frames) {
+  const h = Math.floor(frames / 108000);
+  const m = Math.floor((frames % 108000) / 1800);
+  const s = Math.floor((frames % 1800) / 30);
+  return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+}
+
+function renderHex() {
+  const lines = [];
+  for (let o = 0; o < SAVE_SIZE; o += 16) {
+    const hex = [];
+    for (let i = 0; i < 16 && o + i < SAVE_SIZE; i++) hex.push(active.bytes[o + i].toString(16).padStart(2, "0"));
+    lines.push(o.toString(16).padStart(6, "0") + "  " + hex.join(" "));
+  }
+  $("hexdump").textContent = lines.join("\n");
+}
+
+// --- field change handlers ---
+$("f_charId").addEventListener("change", () => {
+  const id = +$("f_charId").value;
+  setByte(0x22B, id);
+  setByte(0x209, id);
+  $("f_charModel").value = id;
+  // Chris 140 HP / Jill 96 HP
+  const hp = id === 1 ? 96 : 140;
+  setU16(0x21E, hp);
+  $("f_health").value = hp;
+  // Jill carries 8 items, Chris 6 — rebuild the inventory table
+  buildItemRows($("invRows"), 0x324, inventorySlotCount(), "Inv");
+  $("invCountLabel").textContent = "(" + inventorySlotCount() + " slots)";
+  markDirty();
+});
+$("f_charModel").addEventListener("change", () => { setByte(0x209, +$("f_charModel").value); markDirty(); });
+$("f_stage").addEventListener("change", () => {
+  setByte(0x200, +$("f_stage").value);
+  $("f_loc").value = saveLocationName(+$("f_stage").value, +$("f_room").value);
+  markDirty();
+});
+$("f_room").addEventListener("change", () => {
+  setByte(0x201, +$("f_room").value);
+  $("f_loc").value = saveLocationName(+$("f_stage").value, +$("f_room").value);
+  markDirty();
+});
+$("f_camera").addEventListener("change", () => { setByte(0x202, +$("f_camera").value); markDirty(); });
+$("f_posX").addEventListener("change", () => { setU16(0x22C, num("f_posX") & 0xFFFF); markDirty(); });
+$("f_posZ").addEventListener("change", () => { setU16(0x22E, num("f_posZ") & 0xFFFF); markDirty(); });
+$("f_dir").addEventListener("change", () => {
+  const d = num("f_dir") & 0xFFFF;
+  setU16(0x230, d);
+  $("f_dirDeg").value = (d / 4096 * 360).toFixed(1);
+  markDirty();
+});
+$("f_dirDeg").addEventListener("change", () => {
+  const d = Math.round(parseFloat($("f_dirDeg").value) / 360 * 4096) & 0xFFFF;
+  setU16(0x230, d);
+  $("f_dir").value = d;
+  markDirty();
+});
+$("f_health").addEventListener("change", () => { setU16(0x21E, num("f_health") & 0xFFFF); markDirty(); });
+$("f_healthFlags").addEventListener("change", () => {
+  try { setHexBytes(0x232, 1, $("f_healthFlags").value); markDirty(); }
+  catch (e) { $("status").textContent = e.message; $("status").className = "err"; }
+});
+$("f_timer").addEventListener("change", () => {
+  const t = num("f_timer") >>> 0;
+  setU32(0x224, t);
+  $("f_timerStr").value = timerToString(t);
+  updateTimerHint(t);
+  markDirty();
+});
+$("f_timerStr").addEventListener("change", () => {
+  try {
+    const t = stringToTimer($("f_timerStr").value);
+    setU32(0x224, t);
+    $("f_timer").value = t;
+    $("f_timerStr").value = timerToString(t);   // normalise 90s -> 00:01:30
+    updateTimerHint(t);
+    markDirty();
+  } catch (e) {
+    $("status").textContent = e.message;
+    $("status").className = "err";
+    $("f_timerStr").value = timerToString(u32(0x224));
+  }
+});
+$("f_saves").addEventListener("change", () => { setByte(0x228, num("f_saves")); markDirty(); });
+$("f_countdown").addEventListener("change", () => { setU16(0x21C, num("f_countdown") & 0xFFFF); markDirty(); });
+$("f_selectedItem").addEventListener("change", () => { setByte(0x206, +$("f_selectedItem").value); markDirty(); });
+$("f_held").addEventListener("change", () => { setByte(0x207, num("f_held")); markDirty(); });
+$("f_equipped").addEventListener("change", () => { setByte(0x229, +$("f_equipped").value); markDirty(); });
+$("f_roomItemBk").addEventListener("change", () => { setByte(0x22A, num("f_roomItemBk")); markDirty(); });
+
+function hexField(id, off, n) {
+  $(id).addEventListener("change", () => {
+    try { setHexBytes(off, n, $(id).value); markDirty(); }
+    catch (e) { $("status").textContent = e.message; $("status").className = "err"; }
+  });
+}
+hexField("f_scenarioFlags", 0x2A0, 16);
+hexField("f_roomFlags", 0x2B0, 20);
+hexField("f_locksFlags", 0x254, 8);
+hexField("f_enemiesFlags", 0x25C, 32);
+hexField("f_roomItemsFlags", 0x27C, 32);
+hexField("f_scenarioFlags2", 0x234, 32);
+hexField("f_keyBinds", 0x800, 32);
+
+// --- download ---
+$("btnDownload").addEventListener("click", () => {
+  if (!active) return;
+  const blob = new Blob([active.bytes.slice(0)], { type: "application/octet-stream" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = active.name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  $("status").textContent = "downloaded " + active.name;
+  $("status").className = "ok";
+});
+
+// --- file loading ---
+function addFile(name, bytes) {
+  if (bytes.length !== SAVE_SIZE) {
+    $("status").textContent = "skipped " + name + " (size " + bytes.length + ", expected " + SAVE_SIZE + ")";
+    $("status").className = "err";
+    return;
+  }
+  files.set(name, { name, bytes });
+  renderFileList();
+  selectFile(name);
+}
+
+function renderFileList() {
+  const list = $("filelist");
+  list.innerHTML = "";
+  for (const name of files.keys()) {
+    const b = document.createElement("button");
+    b.className = "filebtn" + (name === active?.name ? " active" : "");
+    b.textContent = name;
+    b.addEventListener("click", () => selectFile(name));
+    list.appendChild(b);
+  }
+  $("nosel").style.display = files.size ? "none" : "";
+  $("editor").style.display = files.size ? "" : "none";
+}
+
+function selectFile(name) {
+  active = files.get(name);
+  renderFileList();
+  loadFields();
+}
+
+const drop = $("drop");
+drop.addEventListener("click", () => $("picker").click());
+drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", (e) => {
+  e.preventDefault();
+  drop.classList.remove("over");
+  for (const f of e.dataTransfer.files) readFile(f);
+});
+$("picker").addEventListener("change", () => {
+  for (const f of $("picker").files) readFile(f);
+  $("picker").value = "";
+});
+
+function readFile(f) {
+  const reader = new FileReader();
+  reader.onload = () => addFile(f.name, new Uint8Array(reader.result));
+  reader.readAsArrayBuffer(f);
+}
+
+// Seed the file list from the dev save folder when opened over http(s)
+// (drag & drop works from file:// as well).
+</script>
+</body>
+</html>

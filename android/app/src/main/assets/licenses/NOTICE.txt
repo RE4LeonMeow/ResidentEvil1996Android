@@ -1,0 +1,28 @@
+Resident Evil PC Decompilation Android launcher prototype 1.00
+
+APK icon: supplied by the project maintainer as an ICO file. The largest
+256x256 image is retained without resampling; Android supplies the icon mask.
+Resident Evil artwork is separately owned and is not relicensed by GPL.
+Based on https://github.com/ecruells/resident-evil-pc-decomp
+Copyright and licensing: see RE1-GPL-3.0.txt and the source distribution.
+No gameplay data is included. Supply your own compatible GOG/1997 USA data.
+Launcher artwork is composited from images supplied by the user. Underlying
+Resident Evil artwork and trademarks remain with their respective rightsholders;
+the artwork is separate from the GPL-licensed application code.
+
+Runtime dependencies:
+FFmpeg n7.1.1, commit db69d06eeeab4f46da15030a80d539efb4503ca8
+https://github.com/FFmpeg/FFmpeg - LGPL 2.1 or later, no GPL/nonfree flags.
+zlib 1.2.13 - https://zlib.net/ - zlib license; see zlib.txt. Used for local HD pack decompression.
+SDL 2.30.8 - https://github.com/libsdl-org/SDL - zlib license.
+Emscripten 3.1.69 - https://github.com/emscripten-core/emscripten - MIT/University of Illinois NCSA licenses.
+The source distribution includes dependency source archives and build instructions.
+
+Widescreen presentation adapts viewport/pan and player-projection algorithms
+from ResidentEvilClassicTrilogy.FusionFix v1.1.0, FusionFix contributors,
+GPL-3.0-or-later. https://github.com/Fusion-Fix/ResidentEvilClassicTrilogy.FusionFix
+See FusionFix-GPL-3.0.txt and the source comments for the original files.
+
+Launcher social icons: X, Discord and GitHub SVG paths from Simple Icons 14.15.0,
+CC0-1.0. https://github.com/simple-icons/simple-icons/tree/14.15.0
+See SimpleIcons-CC0.txt. X, Discord and GitHub marks belong to their respective owners.

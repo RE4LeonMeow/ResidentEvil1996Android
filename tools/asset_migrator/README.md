@@ -1,0 +1,224 @@
+# RE1 Asset Migrator
+
+A portable Qt GUI that migrates the assets this port needs. It replaces the old
+`scripts/build_dc_assets.py` importer and adds the base-game migration the script
+never handled.
+
+It is a **tool**, not part of the game: `Game.vcxproj` and the root
+`CMakeLists.txt` do not reference it, and it builds 64-bit with its own Qt kit
+(the game stays 32-bit MSVC).
+
+## Tabs
+
+### PC Assets
+
+Migrates a USA or Japanese base tree.
+
+- **Source** is either an already-extracted folder or a disc image
+  (`.iso` / `.bin` / `.cue`). From an image the asset folders are read straight
+  out of ISO9660; from a folder they are copied.
+- **Asset type** picks the destination tree, `<target>/USA` or `<target>/JPN`.
+- Folder names are canonicalised on the way in (`DATA` -> `Data`,
+  `MOVIE` -> `Movie`, ...), so a retail layout and this repo's tree both work.
+- **Convert movies** transcodes every `Movie/*.avi` to `.mp4` (H.264 + AAC)
+  with ffmpeg. The engine prefers a `.mp4` sibling and falls back to the `.avi`,
+  so keeping the AVI is safe (and the default).
+
+The base tree is only added to; existing files are never deleted.
+
+**Add PS1 assets from a PS1 disc image** (optional) supplements the same tree
+from a 1996 PS1 disc or the Director's Cut, for the PS1 staff and cast rolls in
+OG mode (`[Game] Ps1EndingCredits=1`):
+
+- **Ending-credit data** copies `DATA/STAFF.STF`, `STAFF2.STF` and `BIO.TIM`
+  into `Data/`. The tree's own `EN05`/`EN07`/`CLIS01`/`JILL01` are kept.
+- **Prologue FMV subtitles** decodes the disc's `DATA/JIMAKU00/01/02.RGB` into
+  `Data/jimaku00/01/02.png` — 320-wide greyscale images the JPN prologue FMV draws
+  (`[Game] Ps1FmvSubtitles=1`, read from the JPN tree). Only the Japanese
+  releases carry the files; a disc without them is skipped, not an error. The
+  format and the cue tables are documented in `docs/PS1_FMV_SUBTITLES.md`.
+- **Convert PS1 movies** turns the disc's `.STR` files into `.mp4` in `Movie/`:
+  always `STFC`/`STFJ` (the movies the PS1 credits play), plus any movie the
+  tree has no `.avi`/`.mp4` of. Movies are named the way the PC FMV table
+  expects (USA: `ED4`->`EU4`, `ED5`->`EU5`, `OJ`->`OU`, `PJ`->`PU`); `STFC`/`STFJ`
+  keep their names, since `stfc_r`/`stfj_r` are the PC rolls with the credits
+  baked in.
+- **Replace the tree's own movies** overwrites those with the PS1 versions
+  (and re-converts `STFC`/`STFJ`).
+- **PS1 audio** replaces the tree's sound effects, voices and BGM in
+  `Sound/` and `Voice/` with the disc's, under the tree's own file names.
+  Every name the PS1 has no counterpart for keeps the tree's file. Everything
+  written is listed in `Sound/PS1AUDIO.TXT`; that file is also what makes the
+  game mix at 44.1 kHz instead of 22.05. No config key: the files are the
+  switch. **Running the PC migration again (with a PC source) restores the PC
+  release's sounds**: it deletes the listed files first, then copies the
+  originals back.
+  - *Format*: WAV (lossless, ~525 MB) or Ogg Vorbis (ffmpeg with `libvorbis`,
+    quality 0-10, default 6: ~90 MB, transparent for these 4-bit ADPCM
+    sources). The game looks for `<name>.ogg` before `<name>.wav`, so an OGG
+    run deletes the `.wav` it replaces. Loop points travel as the Vorbis
+    comments `LOOPSTART`/`LOOPLENGTH`; the game decodes with the vendored
+    `src/third_party/stb_vorbis.c`.
+  - *Sound effects* come out of the VAB banks (`SOUND/*.HED`+`.VB` and the
+    bank inside every room `.RDT`) at each tone's PS1 playback rate, 16-bit.
+  - *Voices* are cut out of `VOICE1-5.XAS`: 16 CD-XA channels interleaved
+    sector by sector, 37.8 kHz. **Needs a raw `.bin`/`.cue`**; a 2048-byte
+    image cannot carry the XA channels and the voices are skipped. A name
+    always gets the clip the PS1 plays at its ids, even where the PC shipped
+    different audio under it (15 names). That matters for timing: the DC's
+    room 513 waits for voice 0x51 (`VB00_11`) to finish, 10.0 s on the PS1
+    but 17.4 s for the PC file, which stalled the scene. Ids whose clip no
+    PC name holds get their own `Voice/P<row>_<id>` file, which the game
+    plays for that id: an id that shares a name with a different line
+    (stage 1 id 0x63, stage 5 id 0xAB) or one whose PC name is empty (stage
+    5 ids 0xB5/0xB6).
+  - *BGM* is rendered from the `SEPxx.HSB` sequences through an SPU model
+    (ADPCM, the hardware interpolation table, ADSR, the Room reverb preset the
+    game selects) at 44.1 kHz stereo. A looping track is written as intro +
+    loop with a `smpl` loop region, and the game loops only that region, so
+    the intro plays once as on the PS1 (the PC build loops the whole file).
+  - Levels are matched to the PC files so the PC engine's volume settings
+    still balance: SFX through libsd's squared volume law, voices by a
+    measured constant, each BGM to its PC file's RMS.
+  - Which PS1 sample becomes which PC file is fixed at build time in
+    `src/core/Ps1AudioManifest.h`, generated by
+    `tools/gen_ps1_audio_manifest.py`: 373 of 418 sound effects, all 517
+    voice names plus 4 PS1-only clips, and 82 of 84 BGM channels. The sound
+    effects and BGM left out have no PS1 counterpart that matches the PC file
+    and keep it. A Director's Cut disc works too;
+    its audio is the same except three samples it re-encoded at half rate
+    (`drw_opmt`, `drw_shmt`, `slide_bk`), which the log names. The 1996 disc
+    gives the full-rate originals.
+  - Well under a minute for WAV, about half a minute more for OGG (the
+    encodes run in parallel).
+
+With a PS1 image the PC source can be left empty to update an existing tree.
+Use a raw `.bin`/`.cue` so the movies' CD-XA audio is intact.
+
+### Director's Cut
+
+Builds the `DC/` overlay from a Director's Cut disc image. **An image is
+required**, not an extracted folder: a raw 2352-byte `.bin`/`.cue` keeps the
+CD-XA audio of the `.STR` movies intact, which a 2048-byte content copy
+truncates.
+
+It extracts the disc's asset folders, runs every overlay step (arrange rooms,
+rooms, models, Data, title art, item sprites/models, the save-screen font CLUT
+rows, the PS1 colour-key -> PC index-0 transparency relabel, and the
+STAFF.STF/STAFF2.STF/BIO.TIM ending-credit resources), decodes **every**
+`.BSS` background to `.pak` (STAGE1-7 and STAGE8-E), and converts the `.STR`
+movies to `.mp4`.
+
+`Base tree` selects which tree the overlay is built on top of (it is only read:
+the font comes from it). Movie conversion keeps each STR's original CD-sector
+timing by default, at the PS1's 150 sectors per second through the last valid
+video sector. `Prologue FMV subtitles` decodes the disc's
+`DATA/JIMAKU00/01/02.RGB` into `<target>/JPN/Data/jimaku00/01/02.png` — the
+Japanese prologue subtitles (`[Game] Ps1FmvSubtitles=1`). They go into the JPN
+tree rather than the overlay, because `Ps1FmvSubtitles` builds its path from the
+compile-time `GAME_DATA_ROOT_JPN`, so an overlay
+copy would never be read; that is the one file the DC tab writes outside
+`<target>/DC`. `Verify` runs
+the coverage and background checks afterwards.
+
+## Requirements
+
+- Qt 6.8 (MSVC 2022 64-bit kit; `C:\Qt\6.8.3\msvc2022_64` by default).
+- Visual Studio 2022/2026 with the C++ toolset.
+- `ffmpeg` on `PATH` (or browsed to) for the movie conversions.
+
+## Build
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/asset_migrator/build.ps1
+```
+
+or by hand:
+
+```
+cmake -S tools/asset_migrator -B tools/asset_migrator/build `
+      -G "Visual Studio 18 2026" -A x64 `
+      -DCMAKE_PREFIX_PATH=C:/Qt/6.8.3/msvc2022_64
+cmake --build tools/asset_migrator/build --config Release
+```
+
+`build.ps1` picks the Visual Studio generator from cmake's own default instead
+of naming one, so it works on both a VS 2022 and a VS 2026 machine; pass
+`-Generator` to override (`-Generator Ninja` also works, from a shell with the
+MSVC environment loaded). The Visual Studio generators are multi-config, so
+`build.ps1` writes `tools/asset_migrator/build/Release/re1_asset_migrator.exe`;
+a single-config generator writes it at the root of the build directory.
+
+## Package a portable folder
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/asset_migrator/build.ps1 -Package
+```
+
+This also runs `windeployqt` and copies the exe, the Qt DLLs and the platform
+plugin into `tools/asset_migrator/dist/re1_asset_migrator/`, which runs on a
+machine with no Qt installed. `ffmpeg.exe` is not bundled.
+
+## Releases (CI)
+
+`.github/workflows/release.yml` has a `build-asset-migrator` job that installs Qt
+6.8.3 (`jurplel/install-qt-action`), builds the tool with Ninja on the runner's
+MSVC toolset (`ilammy/msvc-dev-cmd`), deploys the Qt runtime and publishes
+`asset-migrator-<version>-windows-x64.zip` as its own release asset (next to the
+game's `residentevil-<version>-windows-x86.zip` and the Linux bundle). It runs on
+every push to `main` as a compile check, and attaches the zip to the GitHub
+release when release-please cuts one. ffmpeg is not bundled, so players need it
+on `PATH` (or browsed to) for the movie conversions.
+
+The job pins no Visual Studio generator: the generator name depends on which
+Visual Studio the runner image ships (17 for VS 2022, 18 for VS 2026) and CMake
+resolves the instance through its own probe, which is what broke when the image
+moved. Ninja needs no such probe.
+
+## Headless verification
+
+`re1am_selftest.exe` (built alongside the GUI) exercises the core without Qt:
+
+```
+re1am_selftest info <image> [filter]
+re1am_selftest bss <image> <path-in-image> <outdir>
+re1am_selftest strinfo <image> [filter]
+re1am_selftest jimaku <image> <outdir>
+re1am_selftest pc <source|-> <target> <USA|JPN> [--image] [--movies]
+               [--ps1 <image>] [--no-ps1-credits] [--no-ps1-subs]
+               [--no-ps1-movies] [--ps1-replace] [--ps1-audio] [--ps1-ogg]
+               [--ffmpeg <path>]
+re1am_selftest dc <image> <target> <USA|JPN> [--no-bg] [--no-movies]
+               [--no-subs] [--no-verify]
+re1am_selftest ps1audio <image> <tree> [--no-sfx] [--no-voices] [--no-bgm]
+               [--ogg] [--ogg-q N] [--ffmpeg <path>]
+re1am_selftest bgm <image> <BGM name> <out.wav>
+```
+
+The C++ decoders were checked against the Python tools:
+
+- `bss` -> `.pak` output is **byte-identical** to `tools/bss_to_pak.py` for
+  every camera of a base-stage `.BSS` (ROOM100: 6/6 files match).
+- `jimaku` -> `jimaku00/01/02.png` is **byte-identical** to
+  `tools/decode_jimaku.py` for all three planes of the Biohazard DC disc
+  (SHA-256 match, 23 / 7 / 5 lines), and writes nothing for a USA disc.
+- A full DC overlay build (`--no-bg`) is **byte-identical** to
+  `scripts/build_dc_assets.py` for the shared output: 584 files,
+  0 differences, and the same 136 relabelled files / 3,372,204 texels.
+  The ending-credit step additionally emits `Data/staff.stf`,
+  `Data/staff2.stf`, `Data/bio.tim`, `Data/en05.tim`, `Data/en07.tim`,
+  `Data/clis01.pix`, and `Data/jill01.pix`.
+- The `.STR` demux matches `tools/str_to_video.py` exactly (DM8: 160 frames,
+  256x240, v2, 3582 audio groups).
+- PS1 audio (`ps1audio`), against the PC release's WAVs: all 957 files are
+  well-formed. Level ratios PS1/PC come out at 1.03 (SFX), 0.99 (voices) and
+  1.00 (BGM). Every BGM's one-pass length matches its sequence's tick count
+  (`Bgm_00`: 60.63 s on both), and the long-term spectra of the renders line
+  up with the PC files at zero semitone offset (correlation 0.93-0.98). A 1996
+  disc and a Director's Cut disc give byte-identical output except the three
+  re-encoded samples noted above.
+- The game's loader (`src/system/AudioFile.cpp`, built 32-bit) against an OGG
+  run: all 976 files are found through their `.wav` names and decode with the
+  WAV render's exact rate, channels, length and loop points; the PC's own
+  `BGM_33.WAV` reports no loop. Typical Vorbis q6 waveform SNR is ~27 dB,
+  sample-aligned.
