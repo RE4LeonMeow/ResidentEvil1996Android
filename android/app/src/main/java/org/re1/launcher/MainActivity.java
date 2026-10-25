@@ -83,10 +83,8 @@ public final class MainActivity extends Activity implements InputManager.InputDe
     private volatile Map<String, Entry> files = Collections.emptyMap();
     private volatile String manifest = "[]";
     private volatile String storageError = "Select your GOG game folder.";
-    private int padButtons;
-    private int padAxisButtons;
-    private int padDevice = -1;
-    private float padX, padY;
+    private final GamepadState gamepad = new GamepadState();
+    private int padKeyEvents, padMotionEvents;
     private InputManager inputs;
     private boolean destroyed;
     private static final class Entry {
@@ -168,7 +166,8 @@ public final class MainActivity extends Activity implements InputManager.InputDe
         while(reportLines.size()>220)reportLines.removeFirst();
     }
     private synchronized String report() {
-        return (javascriptReport.isEmpty()?"":javascriptReport+"\n\nNative log:\n")+String.join("\n",reportLines);
+        return (javascriptReport.isEmpty()?"":javascriptReport+"\n\nNative log:\n")+
+            "Controller events: keys="+padKeyEvents+" motion="+padMotionEvents+"\n"+String.join("\n",reportLines);
     }
     private void copy(String value) {
         ((ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("RE1 diagnostic report",value));
@@ -467,7 +466,8 @@ public final class MainActivity extends Activity implements InputManager.InputDe
     }
     private int button(int code) {
         switch(code) {
-            case KeyEvent.KEYCODE_BUTTON_A:return 0; case KeyEvent.KEYCODE_BUTTON_B:return 1;
+            case KeyEvent.KEYCODE_BUTTON_A:case KeyEvent.KEYCODE_DPAD_CENTER:return 0;
+            case KeyEvent.KEYCODE_BUTTON_B:case KeyEvent.KEYCODE_BACK:return 1;
             case KeyEvent.KEYCODE_BUTTON_X:return 2; case KeyEvent.KEYCODE_BUTTON_Y:return 3;
             case KeyEvent.KEYCODE_BUTTON_L1:return 4; case KeyEvent.KEYCODE_BUTTON_R1:return 5;
             case KeyEvent.KEYCODE_BUTTON_L2:return 6; case KeyEvent.KEYCODE_BUTTON_R2:return 7;
@@ -478,36 +478,55 @@ public final class MainActivity extends Activity implements InputManager.InputDe
             default:return -1;
         }
     }
+    private boolean controllerSource(int source) {
+        return (source&InputDevice.SOURCE_GAMEPAD)==InputDevice.SOURCE_GAMEPAD ||
+            (source&InputDevice.SOURCE_JOYSTICK)==InputDevice.SOURCE_JOYSTICK ||
+            (source&InputDevice.SOURCE_DPAD)==InputDevice.SOURCE_DPAD;
+    }
+    private void describePad(int id,InputDevice device) {
+        if(!gamepad.contains(id))record("Controller input: device="+id+" "+
+            (device==null?"unknown":device.getName()+" vendor="+device.getVendorId()+
+            " product="+device.getProductId()+" sources=0x"+Integer.toHexString(device.getSources())));
+    }
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         int bit=button(event.getKeyCode());
-        if(bit>=0 && (event.isFromSource(InputDevice.SOURCE_GAMEPAD) || event.isFromSource(InputDevice.SOURCE_JOYSTICK) || event.isFromSource(InputDevice.SOURCE_DPAD))) {
-            padDevice=event.getDeviceId();
-            if(event.getAction()==KeyEvent.ACTION_DOWN)padButtons|=1<<bit;
-            if(event.getAction()==KeyEvent.ACTION_UP)padButtons&=~(1<<bit);
-            publishPad(); return true;
+        InputDevice device=event.getDevice();
+        // Some composite HID controllers label button packets as KEYBOARD.
+        // Accept those only when the originating device also advertises a pad.
+        boolean controller=controllerSource(event.getSource()) || (device!=null&&
+            (device.supportsSource(InputDevice.SOURCE_GAMEPAD)||device.supportsSource(InputDevice.SOURCE_JOYSTICK)));
+        if(bit>=0 && controller && (event.getAction()==KeyEvent.ACTION_DOWN||event.getAction()==KeyEvent.ACTION_UP)) {
+            describePad(event.getDeviceId(),device);padKeyEvents++;
+            // Publish repeats too: JS may have cleared its snapshot on a menu
+            // transition while Android still holds the same physical button.
+            gamepad.key(event.getDeviceId(),bit,event.getAction()==KeyEvent.ACTION_DOWN);
+            publishPad();return true;
         }
         return super.dispatchKeyEvent(event);
     }
-    @Override public boolean onGenericMotionEvent(MotionEvent event) {
-        if(event.isFromSource(InputDevice.SOURCE_JOYSTICK) && event.getAction()==MotionEvent.ACTION_MOVE) {
-            padDevice=event.getDeviceId(); padX=event.getAxisValue(MotionEvent.AXIS_X); padY=event.getAxisValue(MotionEvent.AXIS_Y);
-            padAxisButtons=0;
-            float hx=event.getAxisValue(MotionEvent.AXIS_HAT_X),hy=event.getAxisValue(MotionEvent.AXIS_HAT_Y);
-            if(hx<-.5)padAxisButtons|=1<<14;if(hx>.5)padAxisButtons|=1<<15;
-            if(hy<-.5)padAxisButtons|=1<<12;if(hy>.5)padAxisButtons|=1<<13;
-            if(event.getAxisValue(MotionEvent.AXIS_LTRIGGER)>.5 || event.getAxisValue(MotionEvent.AXIS_BRAKE)>.5)padAxisButtons|=1<<6;
-            if(event.getAxisValue(MotionEvent.AXIS_RTRIGGER)>.5 || event.getAxisValue(MotionEvent.AXIS_GAS)>.5)padAxisButtons|=1<<7;
+    @Override public boolean dispatchGenericMotionEvent(MotionEvent event) {
+        // Activity.onGenericMotionEvent is only a fallback AFTER the focused
+        // WebView. Read axes here, alongside dispatchKeyEvent, so one device
+        // cannot be split between native buttons and swallowed WebView axes.
+        if(controllerSource(event.getSource()) && event.getAction()==MotionEvent.ACTION_MOVE) {
+            describePad(event.getDeviceId(),event.getDevice());padMotionEvents++;
+            gamepad.motion(event.getDeviceId(),event.getAxisValue(MotionEvent.AXIS_X),event.getAxisValue(MotionEvent.AXIS_Y),
+                event.getAxisValue(MotionEvent.AXIS_HAT_X),event.getAxisValue(MotionEvent.AXIS_HAT_Y),
+                Math.max(event.getAxisValue(MotionEvent.AXIS_LTRIGGER),event.getAxisValue(MotionEvent.AXIS_BRAKE)),
+                Math.max(event.getAxisValue(MotionEvent.AXIS_RTRIGGER),event.getAxisValue(MotionEvent.AXIS_GAS)));
             publishPad();return true;
         }
-        return super.onGenericMotionEvent(event);
+        return super.dispatchGenericMotionEvent(event);
     }
     private void publishPad() {
-        if(web!=null && !destroyed && !rendererGone && !resetting) web.evaluateJavascript("window.re1Native?.("+(padButtons|padAxisButtons)+","+padX+","+padY+")",null);
+        GamepadState.Snapshot pad=gamepad.snapshot();
+        if(web!=null && !destroyed && !rendererGone && !resetting)
+            web.evaluateJavascript("window.re1Native?.("+pad.buttons+","+pad.x+","+pad.y+","+pad.connected+")",null);
     }
-    private void clearPad() {padButtons=padAxisButtons=0;padX=padY=0;publishPad();}
-    @Override public void onInputDeviceRemoved(int id) { if(id==padDevice)clearPad(); }
+    private void clearPad() {gamepad.clear();publishPad();}
+    @Override public void onInputDeviceRemoved(int id) { if(gamepad.remove(id)){record("Controller removed: "+id);publishPad();} }
     @Override public void onInputDeviceAdded(int id) {}
-    @Override public void onInputDeviceChanged(int id) { if(id==padDevice)clearPad(); }
+    @Override public void onInputDeviceChanged(int id) { if(gamepad.remove(id)){record("Controller changed: "+id);publishPad();} }
     @Override public void onWindowFocusChanged(boolean focused) {super.onWindowFocusChanged(focused);if(focused)immersive();else clearPad();}
     @Override protected void onPause() {
         paused=true;clearPad();if(!rendererGone){if(!resetting)web.evaluateJavascript("window.re1Lifecycle?.(true)",null);web.onPause();}super.onPause();

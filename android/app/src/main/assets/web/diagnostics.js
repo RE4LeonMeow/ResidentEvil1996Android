@@ -52,7 +52,7 @@
     const canvas=document.getElementById('canvas');
     const aimReport=(label,value)=>label+': '+(!value?'not captured':
       (1000/value.gap).toFixed(1)+' FPS | Frame gap: '+value.gap.toFixed(1)+' ms mean / '+value.peak.toFixed(1)+' ms peak | Tick elapsed: '+value.tick.toFixed(1)+' ms mean | Room: '+(1+(value.camera>>>16))+'/'+((value.camera>>>8)&255).toString(16).padStart(2,'0')+'/'+(value.camera&255)+' | Living enemies: '+value.enemies+' | At: '+((value.time-start)/1000).toFixed(1)+'s')+'\n';
-    return 'Resident Evil '+(globalThis.RE1BrowserStorage?'Browser':'Android')+' 1.00 (build 29)\n'+navigator.userAgent+'\n'+
+    return 'Resident Evil '+(globalThis.RE1BrowserStorage?'Browser':'Android')+' 1.00 (build 30)\n'+navigator.userAgent+'\n'+
       'GPU: '+gpu+'\nOutput: '+canvas.width+'×'+canvas.height+' | HD: '+!!globalThis.RE1HDPack?.active+' | More FPS: '+!!document.getElementById('smooth-frames')?.checked+'\n'+
       'Recent frame gap: '+mean(gaps)+' ms mean / '+(n?recent[Math.floor((n-1)*.95)].toFixed(1):'—')+' ms p95 | Tick elapsed: '+mean(ticks)+' ms mean\n'+
       aimReport('Worst aiming with enemies',aimTiming.best[1])+aimReport('Worst aiming without enemies',aimTiming.best[0])+
