@@ -1,4 +1,4 @@
-**Resident Evil (1996) Android Port
+**Resident Evil (1996) Android Port**
 
 **Browser edition:** link coming soon
 
