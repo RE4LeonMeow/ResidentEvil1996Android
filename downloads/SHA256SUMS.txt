@@ -1,0 +1,2 @@
+9d655a27135e891234cccd80f66a45f0ade4270d3fc8ce32b5b9e4e7fc3f57f9  resident-evil-android-1.00-debug.apk
+aa82930f9eb96c54821be372058ab61441c9e5800071930d40a3c913d7a64256  resident-evil-android-1.01-debug.apk

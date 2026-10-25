@@ -26,7 +26,7 @@ $('aspect').onchange=()=>RE1Presentation.setAspect($('aspect').value);
 let launched=false, launching=false, ready=false, editing=false, background=false;
 window.re1SaveDataAllowed=()=>!launched&&!launching;
 let menuContext=true, editorMovement=input.settings.movement, selectedControl='action';
-let nativePad=null, graphicsOnly=false, restarting=false, failed=false;
+let graphicsOnly=false, restarting=false, failed=false;
 let renderer=localStorage.getItem('re1.renderer')||'auto';
 $('smooth-frames').checked=localStorage.getItem('re1.smoothFrames')==='true';
 $('smooth-frames').onchange=()=>{
@@ -40,15 +40,11 @@ $('renderer').value=renderer;
 $('renderer').onchange=()=>{renderer=$('renderer').value;localStorage.setItem('re1.renderer',renderer);};
 $('skip-movies').checked=localStorage.getItem('re1.skipMovies')==='true';
 $('skip-movies').onchange=()=>localStorage.setItem('re1.skipMovies',String($('skip-movies').checked));
-const originalMask = input.mask.bind(input);
-input.mask = () => nativePad ? originalMask([nativePad]) : originalMask();
-window.re1Native = (buttons,x,y) => {
-  if(!nativePad){
-    nativePad={connected:true,mapping:'standard',axes:[0,0],buttons:Array.from({length:16},()=>({pressed:false}))};
-    $('controller-status').textContent='Android gamepad connected. Left stick and D-pad: movement.';
-  }
-  nativePad.axes[0]=x;nativePad.axes[1]=y;
-  for(let i=0;i<16;i++)nativePad.buttons[i].pressed=!!(buttons&(1<<i));
+window.re1Native = (buttons,x,y,connected=true) => {
+  input.updateNative(buttons,x,y,connected);
+  const status=connected?'Android gamepad connected. Left stick and D-pad: movement.':
+    'Connect a Bluetooth or USB controller, then press a controller button.';
+  if($('controller-status').textContent!==status)$('controller-status').textContent=status;
 };
 const layout = {up:[13,49,'▲'],down:[13,79,'▼'],left:[6,64,'◀'],right:[20,64,'▶'],
   action:[91,63,'ACTION'],run:[82,80,'RUN'],aim:[82,46,'AIM'],inventory:[68,81,'ITEMS'],options:[50,15,'PAUSE'],quickturn:[68,63,'TURN']};
@@ -134,7 +130,7 @@ for(const name of ['pointerup','pointercancel','lostpointercapture'])stick.addEv
   if(e.pointerId!==stickPointer)return;input.release(e.pointerId);stickPointer=null;centerStick();
 });
 $('touch').addEventListener('contextmenu',e=>e.preventDefault());
-function clear(){input.clear();nativePad=null;stickPointer=null;centerStick();document.querySelectorAll('.held,.latched').forEach(x=>{x.classList.remove('held','latched');if(x.hasAttribute('aria-pressed'))x.setAttribute('aria-pressed','false');});}
+function clear(){input.clear();stickPointer=null;centerStick();document.querySelectorAll('.held,.latched').forEach(x=>{x.classList.remove('held','latched');if(x.hasAttribute('aria-pressed'))x.setAttribute('aria-pressed','false');});}
 window.re1TouchContext=menu=>{
   menu=!!menu;if(menu===menuContext)return;
   menuContext=menu;clear();paint();

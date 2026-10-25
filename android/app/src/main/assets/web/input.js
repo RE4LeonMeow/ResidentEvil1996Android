@@ -22,6 +22,7 @@
       this.settings.toggles = {};
       for(const action of Object.keys(bits))if(settings.toggles?.[action]===true)this.settings.toggles[action]=true;
       this.pointers = new Map(); this.native = 0; this.paused = false; this.pending = 0; this.latched = 0;
+      this.nativePad = null; this.nativePending = 0;
     }
     movementStyle(menu) {
       return this.settings.movement==='joystick' && !(menu && this.settings.menuArrows) ? 'joystick' : 'arrows';
@@ -51,10 +52,22 @@
       if(mask)this.pointers.set(id,mask);else this.pointers.delete(id);
     }
     release(id) { this.pointers.delete(id); }
-    clear() { this.pointers.clear(); this.native = 0; this.pending = 0; this.latched = 0; }
+    clear() { this.pointers.clear(); this.native = 0; this.pending = 0; this.latched = 0; this.nativePad = null; this.nativePending = 0; }
+    updateNative(buttons, x, y, connected=true) {
+      if(!connected){this.nativePad=null;this.nativePending=0;return;}
+      const previous=this.gamepadMask(this.nativePad);
+      if(!this.nativePad)this.nativePad={connected:true,mapping:'standard',axes:[0,0],
+        buttons:Array.from({length:16},()=>({pressed:false}))};
+      this.nativePad.axes[0]=Number.isFinite(x)?x:0;
+      this.nativePad.axes[1]=Number.isFinite(y)?y:0;
+      for(let i=0;i<16;i++)this.nativePad.buttons[i].pressed=!!(buttons&(1<<i));
+      // Native key down/up can both arrive between two 30 Hz game ticks.
+      // Keep a rising edge for one tick, just like a short touch/keyboard tap.
+      if(!this.paused)this.nativePending|=this.gamepadMask(this.nativePad)&~previous;
+    }
     poll(pads) {
-      if(this.paused){this.pending=0;return 0;}
-      const held=this.mask(pads);let pending=this.pending;this.pending=0;
+      if(this.paused){this.pending=0;this.nativePending=0;return 0;}
+      const held=this.mask(pads);let pending=this.pending|this.nativePending;this.pending=0;this.nativePending=0;
       // A short tap between two game ticks must reach one tick. Current
       // movement takes priority over an earlier, opposite direction tap.
       if(held&bits.up)pending&=~bits.down;if(held&bits.down)pending&=~bits.up;
@@ -63,21 +76,23 @@
       if(mask&bits.up)mask&=~bits.down;if(mask&bits.left)mask&=~bits.right;
       return mask>>>0;
     }
+    gamepadMask(pad) {
+      if(!pad||!pad.connected||pad.mapping!=='standard')return 0;
+      let mask=0;
+      const d=this.settings.deadzone,x=pad.axes[0]||0,y=pad.axes[1]||0;
+      if(x<-d)mask|=bits.left;if(x>d)mask|=bits.right;
+      if(y<-d)mask|=bits.up;if(y>d)mask|=bits.down;
+      for(let i=0;i<16;i++)if(pad.buttons[i]?.pressed||pad.buttons[i]?.value>.5)mask|=this.settings.mapping[i];
+      return mask;
+    }
     mask(pads) {
       if (this.paused) return 0;
       let mask = this.native | this.latched;
       for (const bit of this.pointers.values()) mask |= bit;
-      if (pads === undefined) pads = root.navigator?.getGamepads?.() || [];
-      for (const pad of pads) {
-        if (!pad || !pad.connected || pad.mapping !== 'standard') continue;
-        const d = this.settings.deadzone, x = pad.axes[0] || 0, y = pad.axes[1] || 0;
-        if (x < -d) mask |= bits.left;
-        if (x > d) mask |= bits.right;
-        if (y < -d) mask |= bits.up;
-        if (y > d) mask |= bits.down;
-        for (let i=0; i<16; i++) if (pad.buttons[i]?.pressed || pad.buttons[i]?.value > 0.5)
-          mask |= this.settings.mapping[i];
-      }
+      // A native controller owns its state until explicitly released. Cleanup
+      // with no controller must leave browser Gamepad polling available.
+      if (pads === undefined) pads = this.nativePad ? [this.nativePad] : root.navigator?.getGamepads?.() || [];
+      for (const pad of pads) mask |= this.gamepadMask(pad);
       if (mask & 1) mask &= ~2;
       if (mask & 4) mask &= ~8;
       return mask >>> 0;

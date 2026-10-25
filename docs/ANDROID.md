@@ -926,3 +926,40 @@ expansion are rejected without writing. Matching slots commit together in
 one IndexedDB transaction. Android transfers ZIP bytes through its document
 picker, with no broad storage permission. The JSON format from build 28 is
 replaced by this ZIP workflow. Game-engine and rendering bytes are unchanged.
+
+## Version 1.00, build 30: Android controller input
+
+A G8 Galileo report described a detected controller accepting only one or two
+inputs. Android previously intercepted button keys before WebView, but read
+joystick motion only in Activity's fallback after WebView. Native snapshots
+also replaced browser Gamepad polling even when created by empty focus/pause
+cleanup. A launcher regression test reproduced that empty-snapshot failure.
+
+Joystick motion now enters through `dispatchGenericMotionEvent`, before
+WebView, alongside the existing key dispatch. Button packets from a composite
+device advertising GAMEPAD/JOYSTICK are accepted even when labelled KEYBOARD.
+Native state tracks Android device IDs separately, so neutral motion or removal
+of one HID interface cannot erase another interface's held buttons or stick.
+Disconnect/focus cleanup explicitly releases native ownership, allowing browser
+polling again. Native taps between game ticks are buffered for one tick, with
+the same pause/clear rules as touch input. Logs include device names, source
+masks and key/motion event counts for follow-up device reports.
+
+Validation: 52 Node tests; JVM controller-state tests for standard buttons,
+axes, hats/triggers, composite interfaces, cleanup and reconnect; real Chromium
+launcher tests with simulated controller packets; existing GLES 2/3, audio,
+touch and IDBFS persistence smoke tests. These do not verify a physical G8;
+the reporter should retest the APK. Version remains 1.00 with versionCode 30.
+The established APK signature and game-engine/WASM bytes are preserved.
+
+## Version 1.01, build 31: controller fix release
+
+This release includes the Android controller fixes tested in 1.00 build 30.
+The user reports a successful DualSense test; a physical G8 Galileo retest
+has not been reported. Runtime behavior matches the tested build 30, apart
+from the displayed version and diagnostic labels. Android versionCode is 31
+so it updates both the public 1.00 APK and the controller test APK.
+
+The original signing certificate is retained. Saves, settings, game files
+and existing HD packs need no migration or rebuild. Game-engine/WASM,
+rendering, audio and image assets are unchanged.

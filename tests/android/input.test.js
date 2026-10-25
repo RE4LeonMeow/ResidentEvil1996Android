@@ -16,6 +16,29 @@ test('controller deadzone, diagonals, D-pad, triggers and start match Marni mask
 test('controller disconnect, focus loss and pause release buttons',()=>{const i=new Input();assert.equal(i.mask([pad([0,0],[0])]),256);assert.equal(i.mask([]),0);i.press(1,'action');i.paused=true;assert.equal(i.mask([]),0);i.clear();i.paused=false;assert.equal(i.mask([]),0);});
 test('controller remapping persists and rejects invalid bit values',()=>{const map=new Array(16).fill(0);map[0]=bits.aim;map[1]=-1;const i=new Input({mapping:map});assert.equal(i.mask([pad([0,0],[0,1])]),bits.aim);});
 test('unknown/nonstandard controllers do not guess button layouts',()=>{const i=new Input();assert.equal(i.mask([{...pad([1,1],[0]),mapping:''}]),0);});
+test('native short button and D-pad taps survive between ticks exactly once',()=>{
+ const i=new Input();
+ for(const [button,expected] of [[0,bits.action],[2,bits.aim],[12,bits.up],[15,bits.right]]){
+  i.updateNative(1<<button,0,0);i.updateNative(0,0,0);
+  assert.equal(i.poll(),expected);assert.equal(i.poll(),0);
+ }
+});
+test('native held inputs, remapping, deadzone and opposite movement preserve game masks',()=>{
+ const i=new Input({deadzone:.4,mapping:[bits.aim,...new Array(15).fill(0)]});
+ i.updateNative(1,.2,-.3);assert.equal(i.poll(),bits.aim);assert.equal(i.poll(),bits.aim);
+ i.updateNative(1,-.8,.8);assert.equal(i.poll(),bits.aim|bits.left|bits.down);
+ i.updateNative(1,.8,-.8);assert.equal(i.poll(),bits.aim|bits.right|bits.up);
+ i.updateNative(0,0,0);assert.equal(i.poll(),0);
+});
+test('native detach drops native buffered taps while keeping independent touch taps',()=>{
+ const i=new Input();i.press(7,'run');i.release(7);i.updateNative(1,0,0);
+ i.updateNative(0,0,0,false);assert.equal(i.nativePad,null);assert.equal(i.poll([]),bits.run);assert.equal(i.poll([]),0);
+});
+test('pause/clear do not replay native events and next packet restores input',()=>{
+ const i=new Input();i.paused=true;i.updateNative(1,0,0);i.updateNative(0,0,0);assert.equal(i.poll(),0);
+ i.paused=false;assert.equal(i.poll(),0);i.updateNative(1,0,0);i.clear();assert.equal(i.poll([]),0);
+ i.updateNative(1,0,0);assert.equal(i.poll(),bits.action);i.updateNative(0,0,0);assert.equal(i.poll(),0);
+});
 test('a tap released between engine ticks is delivered once without sticking',()=>{
  const i=new Input();i.press(1,'action');i.release(1);assert.equal(i.mask([]),0);
  assert.equal(i.poll([]),bits.action);assert.equal(i.poll([]),0);
