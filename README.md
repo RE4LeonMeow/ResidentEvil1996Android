@@ -1,6 +1,6 @@
 ## **Resident Evil (1996) Android Port**
 
-**Browser edition:** link coming soon
+**Browser edition:** https://github.com/RE4LeonMeow/ResidentEvil1996Browser
 
 Hey! This is my unofficial Android port of Resident Evil 1, based on
 [ecruells/resident-evil-pc-decomp](https://github.com/ecruells/resident-evil-pc-decomp).
