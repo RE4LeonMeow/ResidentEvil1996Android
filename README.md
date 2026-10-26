@@ -49,6 +49,8 @@ game version and required engine features, wherever you download it.
 Select your own USA GOG game folder, open **Mods**, tap **+** and choose a ZIP.
 The **?** button has the same quick compatibility guide. Mods are Android-only.
 
+For Seamless HD, follow [Install SHDP in a few steps](#install-shdp-in-a-few-steps).
+
 **New to modding?** Start with [Bring a PC mod to Android, step by step](docs/PORTING_PC_MODS.md).
 It shows which files to use, how to ZIP them and when a mod needs more work.
 To paint your own textures instead, use [Make your first texture mod](docs/ANDROID_MODS.md#make-your-first-texture-mod).
@@ -67,6 +69,55 @@ name and description; otherwise the launcher lets you enter them. Use
 **Edit details** to change them later. RAR, 7z and split downloads need to be
 extracted first, then ZIP the actual mod folders together. Do not put the RAR
 or 7z file inside another ZIP.
+
+### Install SHDP in a few steps
+
+SHDP means **Resident Evil Seamless HD Project**. Use its full **RE1 PC pack**
+with this Android port:
+
+1. Open the [official RE1 Seamless HD download page](https://www.reshdp.com/re1/#downloads)
+   and follow its PC/Mod DB download link. Get the full **`RE_SHDP_1.1.zip`**.
+   The small update/patch and GitHub **Code → Download ZIP** source archive
+   are not the full texture/movie pack. Packs for RE2, RE3 or emulators are
+   different downloads.
+2. Put **`RE_SHDP_1.1.zip` on your phone** and keep it as downloaded. Do not
+   extract it, rename another archive to ZIP or remove its movie folders.
+   It is a large download; keep several GB free for installation and temporary
+   files.
+3. Open **Resident Evil Launcher** and **Select game folder** for your own
+   original **USA GOG RE1** files. If the game is running, return to the
+   launcher first.
+4. Open **Mods**, tap **+** in the top-right corner and select
+   **`RE_SHDP_1.1.zip`**. Keep the app open and wait until it says
+   **Mod installed and enabled**. Importing the full pack can take a while.
+5. Check that Seamless HD is enabled in the Mods list. For your first test,
+   leave other mods disabled so you can check SHDP by itself.
+6. Close Mods and **Launch game**. Relaunch after changing enabled mods or
+   their priority. With a supported translation added later, keep that
+   translation above packs replacing the same font/UI.
+
+**You do not need Mod Helper or Classic REbirth's Windows DLL for SHDP.**
+Do not copy its files over your original GOG installation. The launcher uses
+the supported parts directly from the imported mod.
+
+**Install HD pack is a separate feature.** That button generates an upscaled
+pack from your game files; it does not install SHDP. SHDP uses **Mods → +** and
+works independently of the generated pack's **Use HD pack** checkbox.
+
+If it does not look right:
+
+- **No HD changes:** confirm the SHDP checkbox is on, relaunch, and read its
+  Compatibility report. Check that you imported the full PC pack and selected
+  the original USA GOG game folder.
+- **Videos are skipped or missing:** turn off **Skip movies** in settings and
+  check that you imported the complete ZIP, including its movie folders.
+  A **Loading HD video** message can appear while a clip is prepared; let it
+  finish.
+- **Only a few textures remain original:** some USA GOG assets differ from the
+  PC version SHDP was made for. See the [SHDP coverage notes](docs/SHDP_COMPATIBILITY.md)
+  for known differences; this alone does not mean installation failed.
+- **Import fails:** note the exact error and include **Settings → Logs → Copy
+  report** when reporting it. Check free storage and that the download finished.
 
 ### What needs preparation or additional support?
 
