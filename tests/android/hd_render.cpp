@@ -45,10 +45,53 @@ int main(int argc,char** argv){
   // Invalid worker dimensions never upload. Keep original pixels immediately.
   packed[16]=19;fixture(packed.data(),packed.size());red[0]=254;
   tex=dx.CreateTexture(4,4,32,red,nullptr,nullptr);EM_ASM({hdReady=true;});pixel(dx,tex,255,0,0);dx.DestroyTexture(tex);
+  // Artist-authored mod textures use their own size, not the AI 4.5x size.
+  packed.assign(32+8*8*4,0);memcpy(packed.data(),"R1HD",4);
+  unsigned modHeader[]={3,4,4,8,8,8*8*4,0};memcpy(packed.data()+4,modHeader,sizeof(modHeader));
+  for(int i=0;i<8*8;i++){packed[32+i*4+1]=255;packed[32+i*4+3]=255;}
+  fixture(packed.data(),packed.size());red[0]=253;
+  tex=dx.CreateTexture(4,4,32,red,nullptr,nullptr);EM_ASM({hdReady=true;});pixel(dx,tex,0,255,0);
+  dx.GetTextureSize(tex,&w,&h);assert(w==4&&h==4);dx.DestroyTexture(tex);
+  // Invalid version-3 dimensions are rejected before a GL upload as well.
+  packed[16]=9;fixture(packed.data(),packed.size());red[0]=252;
+  tex=dx.CreateTexture(4,4,32,red,nullptr,nullptr);EM_ASM({hdReady=true;});pixel(dx,tex,255,0,0);dx.DestroyTexture(tex);
+  // TeamX's narrow pages retain every HD texel; logical UV dimensions stay
+  // square here even when the imported texture is physically rectangular.
+  packed.assign(32+8*12*4,0);memcpy(packed.data(),"R1HD",4);
+  unsigned pageHeader[]={4,4,4,8,12,8*12*4,0};memcpy(packed.data()+4,pageHeader,sizeof(pageHeader));
+  for(int y=0;y<12;y++)for(int x=0;x<8;x++){packed[32+(y*8+x)*4+(x<4?1:2)]=255;packed[32+(y*8+x)*4+3]=255;}
+  fixture(packed.data(),packed.size());red[0]=251;tex=dx.CreateTexture(4,4,32,red,nullptr,nullptr);EM_ASM({hdReady=true;});
+  dx.Clear(0,0,0,1);dx.DrawSprite(0,0,64,64,0,0,1,1,0xffffffff,tex,MARNI_SAMPLER_POINT,MARNI_BLEND_DISABLE);
+  void* pagePixels=nullptr;DWORD pw=0,ph=0;assert(dx.CaptureBackbufferToRGBA(&pagePixels,&pw,&ph));
+  auto* pp=static_cast<unsigned char*>(pagePixels);assert(pp[(32*pw+16)*4+1]==255&&pp[(32*pw+48)*4+2]==255);free(pagePixels);
+  dx.GetTextureSize(tex,&w,&h);assert(w==4&&h==4);dx.DestroyTexture(tex);
   // Video textures bypass the replacement cache and remain mutable.
   re1_web_hd_dynamic(1);tex=dx.CreateTexture(4,4,32,red,nullptr,nullptr);re1_web_hd_dynamic(0);assert(tex);
   unsigned char blue[64];for(int i=0;i<16;i++){blue[i*4]=0;blue[i*4+1]=0;blue[i*4+2]=255;blue[i*4+3]=255;}
   assert(dx.UpdateTexturePixels(tex,blue,4,4,32));pixel(dx,tex,0,0,255);dx.DestroyTexture(tex);
+  // Dynamic inventory pages resolve only the drawn 40x30 icon, preserving
+  // page UVs and avoiding an HD atlas for every inventory combination.
+  packed.assign(32+80*60*4,0);memcpy(packed.data(),"R1HD",4);
+  unsigned iconHeader[]={3,40,30,80,60,80*60*4,0};memcpy(packed.data()+4,iconHeader,sizeof(iconHeader));
+  for(int i=0;i<80*60;i++){packed[32+i*4+1]=255;packed[32+i*4+3]=255;}
+  fixture(packed.data(),packed.size());
+  EM_ASM({RE1HDPack.regionTiles=true;RE1HDPack.size=key=>key.endsWith('_40x30')?hdBytes.length:0;
+    const request=RE1HDPack.request;RE1HDPack.request=key=>{globalThis.regionKey=key;request(key);};});
+  std::vector<unsigned char> atlas(256*256*4,0);
+  for(int i=0;i<256*256;i++)atlas[i*4+3]=255;
+  for(int y=50;y<80;y++)for(int x=20;x<60;x++)atlas[(y*256+x)*4]=255;
+  tex=dx.CreateTexture(256,256,32,atlas.data(),nullptr,nullptr);assert(tex);
+  auto iconPixel=[&](unsigned char r,unsigned char g,unsigned char b){
+    dx.Clear(0,0,0,1);dx.DrawSprite(0,0,64,64,20.f/256,50.f/256,60.f/256,80.f/256,0xffffffff,tex,MARNI_SAMPLER_POINT,MARNI_BLEND_DISABLE);
+    void* image=nullptr;DWORD iw=0,ih=0;assert(dx.CaptureBackbufferToRGBA(&image,&iw,&ih));
+    auto* center=static_cast<unsigned char*>(image)+(32*iw+32)*4;assert(center[0]==r&&center[1]==g&&center[2]==b);free(image);
+  };
+  iconPixel(255,0,0);EM_ASM({hdReady=true;});iconPixel(0,255,0);
+  pixel(dx,tex,0,0,0); // Other regions of the composite page remain original.
+  dx.GetTextureSize(tex,&w,&h);assert(w==256&&h==256);
+  EM_ASM({RE1HDPack.size=key=>key===regionKey?hdBytes.length:0;});
+  for(int y=50;y<80;y++)for(int x=20;x<60;x++){atlas[(y*256+x)*4]=0;atlas[(y*256+x)*4+2]=255;}
+  assert(dx.UpdateTexturePixels(tex,atlas.data(),256,256,32));iconPixel(0,0,255);dx.DestroyTexture(tex);
  }
  SDL_GL_DeleteContext(context);SDL_DestroyWindow(window);SDL_Quit();return 0;
 }

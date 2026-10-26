@@ -5,9 +5,11 @@
 #include <emscripten.h>
 #include <emscripten/heap.h>
 #include <stdio.h>
+#include <cstring>
 #include "presentation.h"
 #include "../../game/PortCheats.h"
 #include "../../marni/MarniSystem.h"
+#include "localization.inl"
 
 // Port-owned session state, deliberately outside BioCardLayout/save data.
 static unsigned s_cheats = 0;
@@ -89,6 +91,7 @@ EM_JS(unsigned int, re1_web_pad_mask, (), {
     return globalThis.RE1Input ? globalThis.RE1Input.poll() : 0;
 });
 EM_JS(void, re1_web_audio_suspend, (int paused), {
+    globalThis.RE1ModVideo?.suspend(!!paused);
     const audio = Module['SDL2'] && Module['SDL2'].audioContext;
     if (audio && audio.state !== 'closed') {
         const promise = paused ? audio.suspend() : audio.resume();
@@ -155,6 +158,30 @@ EMSCRIPTEN_KEEPALIVE void re1_web_suspend(int suspended)
 }
 EMSCRIPTEN_KEEPALIVE void re1_web_request_quit() { g_bQuitFlag = TRUE; }
 EMSCRIPTEN_KEEPALIVE void re1_web_settings_save() { ConfigFile_Save(); }
+// Read-only diagnostics for the virtual-pad actions named by the launcher.
+EMSCRIPTEN_KEEPALIVE int re1_web_game_action_binding(int action)
+{
+    static const unsigned slots[] = {8, 9, 10, 15, 14};
+    if (action == 5) return g_controllerConfig & 3;
+    return action >= 0 && action < 5 ? int(g_JoyRemapTbl[1][slots[action]]) : -1;
+}
+// Port-owned recovery for input layouts restored by PC/older save files.
+// Explicit only: keep custom game bindings until the player requests reset.
+EMSCRIPTEN_KEEPALIVE int re1_web_restore_game_actions()
+{
+    if (g_bWindowFocused) return 0; // change bindings while Settings is paused
+    std::memset(g_JoyRemapTbl[1], 0, sizeof(g_JoyRemapTbl[1]));
+    InstallPadDefaultBindings();
+    std::memcpy(g_joyRemapBackupKey, g_JoyRemapTbl[1], sizeof(g_JoyRemapTbl[1]));
+    std::memcpy(g_joyRemapBackupJoy, g_JoyRemapTbl[1], sizeof(g_JoyRemapTbl[1]));
+    g_controllerConfig &= 0xfc; // default built-in action layout; keep other flags
+    g_PadBtnWord = g_RawPadHeld = g_PlayerPadPressed = g_PlayerPadHeld = 0;
+    g_PlayerPadHeldPrev = g_button_pressed_id = 0;
+    g_RawPadState = g_padEdgeDetectedWord = 0;
+    g_PlayerDpadHeld = g_PlayerDpadHeldPrev = g_PlayerDpadPressed = 0;
+    fprintf(stderr, "[INPUT] Restored default game action bindings\n");
+    return 1;
+}
 // Android port feature: an instant half-turn during ordinary player movement.
 // Uses the existing player entity (0x00be62e4), not the legacy standalone
 // g_playerAngle variable. Never modifies the packed layout or scripted states.

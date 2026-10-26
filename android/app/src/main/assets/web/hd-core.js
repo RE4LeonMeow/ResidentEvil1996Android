@@ -140,11 +140,11 @@
         const signature=(isPak&&t.mode>=2?'base:':'page:')+key(data.subarray(p,t.end),t.w,t.h);
         if(seenBlocks.has(signature)){p=t.end-1;continue;}seenBlocks.add(signature);
       }
-      if(t.mode>=2){yield {w:t.w,h:t.h,rgba:decode(t,0,isPak?'opaque':'page')};if(!isPak)yield {w:t.w,h:t.h,rgba:decode(t,0,'opaque')};}
+      if(t.mode>=2){yield {w:t.w,h:t.h,rgba:decode(t,0,isPak?'opaque':'page'),offset:p,palette:0,rule:isPak?'opaque':'page'};if(!isPak)yield {w:t.w,h:t.h,rgba:decode(t,0,'opaque'),offset:p,palette:0,rule:'opaque'};}
       else{
         const rows=Math.min(256,Math.floor(t.palette.count/(t.mode?256:16)));
         for(let row=0;row<rows;row++){
-          for(const rule of row===0?['page','effect','opaque']:['index','effect'])yield {w:t.w,h:t.h,rgba:decode(t,row,rule)};
+          for(const rule of row===0?['page','effect','opaque']:['index','effect'])yield {w:t.w,h:t.h,rgba:decode(t,row,rule),offset:p,palette:row,rule};
         }
       }
       p=t.end-1;

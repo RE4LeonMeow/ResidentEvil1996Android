@@ -22,7 +22,7 @@ target_link_options(residentevil PRIVATE
     -sEMULATE_FUNCTION_POINTER_CASTS=1 -sASYNCIFY=1 -sASYNCIFY_STACK_SIZE=131072 -sSTACK_SIZE=2097152
     -sINITIAL_MEMORY=134217728 -sALLOW_MEMORY_GROWTH=1 -sMAXIMUM_MEMORY=1073741824
     -sFORCE_FILESYSTEM=1 -sEXIT_RUNTIME=1 -sASSERTIONS=1
-    "-sEXPORTED_FUNCTIONS=['_main','_re1_web_suspend','_re1_web_settings_save','_re1_web_request_quit','_re1_web_quick_turn','_re1_web_cheat','_re1_web_set_smooth']"
+    "-sEXPORTED_FUNCTIONS=['_main','_re1_web_suspend','_re1_web_settings_save','_re1_web_request_quit','_re1_web_quick_turn','_re1_web_cheat','_re1_web_set_smooth','_re1_web_localization_load','_re1_web_restore_game_actions','_re1_web_game_action_binding']"
     "-sEXPORTED_RUNTIME_METHODS=['FS','callMain']"
     -sINVOKE_RUN=0 -sDYNAMIC_EXECUTION=0
     --pre-js "${CMAKE_SOURCE_DIR}/android/app/src/main/assets/web/runtime.js"

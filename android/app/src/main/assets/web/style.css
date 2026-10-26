@@ -20,3 +20,9 @@ button{-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-sel
 /* android-hd:end */
 
 .launcher-footer{max-width:100%}.launcher-footer p{margin:0 0 12px}.launcher-links{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.social-link{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;flex-shrink:0;border:1px solid #a8a59899;border-radius:6px;background:#101412ed;color:#fff;box-shadow:0 2px 12px #0008;-webkit-tap-highlight-color:transparent;touch-action:manipulation}.social-link svg{width:24px;height:24px;fill:currentColor}#social-discord{color:#5865f2}.social-link:hover,.social-link:focus-visible{border-color:#e9c280;outline:2px solid #e9c280;outline-offset:2px}#launcher-donation{height:44px;padding:8px 14px;background:#101412ed;border-color:#a8a59899;box-shadow:0 2px 12px #0008}#donation p{line-height:1.6}#donation-addresses{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.8 ui-monospace,monospace;-webkit-user-select:text;user-select:text;padding:12px;background:#080d0b;border:1px solid #39413b;border-radius:5px}
+
+/* User-supplied Compacta Bold for headings; paragraphs and controls keep their UI font. */
+@font-face{font-family:'Compacta Launcher';src:url('fonts/compacta-bold.ttf') format('truetype');font-style:normal;font-weight:700;font-display:swap}
+h1,h2,h3{font-family:'Compacta Launcher',Impact,'Arial Narrow',sans-serif;font-weight:700;letter-spacing:.035em;line-height:1.15}
+h2{font-size:32px}h3{font-size:26px}
+@media(max-width:650px){.launch-card h2{font-size:28px}}

@@ -5,6 +5,11 @@
 int main() {
     int w,h;assert(WebHD::Dimensions(320,240,w,h)&&w==1440&&h==1080);
     assert(!WebHD::Dimensions(-1,240,w,h));assert(!WebHD::Dimensions(100000,100000,w,h));
+    assert(WebHD::ModDimensions(320,240,1280,960));assert(WebHD::ModDimensions(256,256,4096,4096));
+    assert(!WebHD::ModDimensions(320,240,1920,1080));assert(!WebHD::ModDimensions(0,240,1280,960));
+    assert(!WebHD::ModDimensions(256,256,8192,8192));assert(!WebHD::ModDimensions(320,240,160,120));
+    assert(WebHD::ModPageDimensions(128,256,1024,1024));assert(!WebHD::ModDimensions(128,256,1024,1024));
+    assert(!WebHD::ModPageDimensions(128,256,64,1024));
     unsigned char source[64];const unsigned char colors[][4]={{0,0,0,255},{255,0,0,255},{0,255,0,255},{0,0,255,255}};
     for(int i=0;i<16;i++)memcpy(source+i*4,colors[i%4],4);
     char key[64];WebHD::Key(source,4,4,key);std::cout<<key<<'\n';

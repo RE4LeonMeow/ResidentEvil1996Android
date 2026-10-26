@@ -180,7 +180,7 @@
     if(result.error)task.reject(Error(result.error));else task.resolve(result);
   };
   $('launcher-saves').onclick=()=>{
-    if(!allowed())return;reset();status('Export a backup before uninstalling or clearing app/browser data. Backups work in both editions.');dialog.showModal();root.re1SaveDialogChanged?.();
+    if(!allowed())return;reset();status('Export a backup before uninstalling or clearing app/browser data. Backups work in both editions.');root.re1ShowDialog(dialog);root.re1SaveDialogChanged?.();
   };
   $('saves-close').onclick=()=>{if(!busy){dialog.close();root.re1SaveDialogChanged?.();}};
   dialog.addEventListener('cancel',event=>{if(busy)event.preventDefault();else setTimeout(()=>root.re1SaveDialogChanged?.(),0);});

@@ -7,6 +7,7 @@
 #include "dc/ItemDescriptions.h"
 #include "dc/EntityModels.h"    // the arrange wardrobe's two outfit flags
 #include "../system/AssetPath.h"
+#include "../platform/ModLocalization.h"
 #include <cstdio>
 
 // Forward declarations for helpers defined in other files
@@ -78,6 +79,7 @@ unsigned int set_message_display(unsigned short msg_id, unsigned short pause_gam
             unsigned char* msgBase = g_RdtPointer->messages;
             unsigned short offset = *(unsigned short*)(msgBase + (msg_id & 0x3F) * 2);
             g_MessagePtr = msgBase + offset;
+            g_MessagePtr = PortLocalizationRoom(msg_id & 0x3f,g_MessagePtr);
         }
     } else {
         // Global message from the global_messages lookup table. The Japanese

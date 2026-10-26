@@ -4,7 +4,7 @@
   const bits = {up:1, down:2, left:4, right:8, action:256, run:512,
     aim:1024, inventory:32768, options:16384};
   const defaults = {opacity:0.55, scale:1, deadzone:0.30, hidden:false, movement:'arrows', menuArrows:true, showFPS:false,
-    positions:{}, sizes:{}, toggles:{}, mapping:[256,512,1024,2048,4096,8192,262144,524288,16384,32768,65536,131072,1,2,4,8]};
+    positions:{}, sizes:{}, toggles:{}, quickTurnButton:11, mapping:[256,512,1024,2048,4096,8192,262144,524288,16384,32768,65536,131072,1,2,4,8]};
   class Input {
     constructor(settings = {}) {
       this.settings = {...defaults, ...settings};
@@ -14,6 +14,7 @@
       this.settings.deadzone = Math.max(0.1, Math.min(0.9, Number(this.settings.deadzone) || 0.3));
       this.settings.movement = this.settings.movement === 'joystick' ? 'joystick' : 'arrows';
       this.settings.menuArrows = this.settings.menuArrows !== false;
+      this.settings.quickTurnButton = Number.isInteger(settings.quickTurnButton)&&settings.quickTurnButton>=-1&&settings.quickTurnButton<16?settings.quickTurnButton:11;
       this.settings.sizes = {};
       for (const name of [...Object.keys(bits),'quickturn','joystick']) {
         const value=settings.sizes?.[name];
@@ -23,6 +24,7 @@
       for(const action of Object.keys(bits))if(settings.toggles?.[action]===true)this.settings.toggles[action]=true;
       this.pointers = new Map(); this.native = 0; this.paused = false; this.pending = 0; this.latched = 0;
       this.nativePad = null; this.nativePending = 0;
+      this.quickPending=false;this.quickHeld=false;this.quickBlocked=false;
     }
     movementStyle(menu) {
       return this.settings.movement==='joystick' && !(menu && this.settings.menuArrows) ? 'joystick' : 'arrows';
@@ -52,21 +54,35 @@
       if(mask)this.pointers.set(id,mask);else this.pointers.delete(id);
     }
     release(id) { this.pointers.delete(id); }
-    clear() { this.pointers.clear(); this.native = 0; this.pending = 0; this.latched = 0; this.nativePad = null; this.nativePending = 0; }
+    clear() { this.quickBlocked=this.quickBlocked||this.quickHeld||this.quickDown(this.nativePad);this.quickHeld=false;this.quickPending=false;this.pointers.clear(); this.native = 0; this.pending = 0; this.latched = 0; this.nativePad = null; this.nativePending = 0; }
+    quickDown(pad) {
+      const button=this.settings.quickTurnButton;
+      return button>=0&&pad?.connected&&pad.mapping==='standard'&&!!(pad.buttons[button]?.pressed||pad.buttons[button]?.value>.5);
+    }
     updateNative(buttons, x, y, connected=true) {
-      if(!connected){this.nativePad=null;this.nativePending=0;return;}
+      if(!connected){this.nativePad=null;this.nativePending=0;this.quickPending=false;this.quickHeld=false;this.quickBlocked=false;return;}
       const previous=this.gamepadMask(this.nativePad);
+      const previousQuick=this.quickDown(this.nativePad);
       if(!this.nativePad)this.nativePad={connected:true,mapping:'standard',axes:[0,0],
         buttons:Array.from({length:16},()=>({pressed:false}))};
       this.nativePad.axes[0]=Number.isFinite(x)?x:0;
       this.nativePad.axes[1]=Number.isFinite(y)?y:0;
       for(let i=0;i<16;i++)this.nativePad.buttons[i].pressed=!!(buttons&(1<<i));
+      const quick=this.quickDown(this.nativePad);
+      if(!quick)this.quickBlocked=false;
+      if(this.paused&&quick)this.quickBlocked=true;
+      if(!this.paused&&!this.quickBlocked&&quick&&!previousQuick)this.quickPending=true;
       // Native key down/up can both arrive between two 30 Hz game ticks.
       // Keep a rising edge for one tick, just like a short touch/keyboard tap.
       if(!this.paused)this.nativePending|=this.gamepadMask(this.nativePad)&~previous;
     }
     poll(pads) {
-      if(this.paused){this.pending=0;this.nativePending=0;return 0;}
+      if(pads===undefined)pads=this.nativePad?[this.nativePad]:root.navigator?.getGamepads?.()||[];
+      const quick=Array.from(pads).some(pad=>this.quickDown(pad));
+      if(this.paused){this.pending=0;this.nativePending=0;this.quickPending=false;if(quick)this.quickBlocked=true;this.quickHeld=quick;return 0;}
+      const turn=(this.quickPending||quick&&!this.quickHeld)&&!this.quickBlocked;
+      this.quickPending=false;this.quickHeld=quick;if(!quick)this.quickBlocked=false;
+      if(turn)this.onQuickTurn?.();
       const held=this.mask(pads);let pending=this.pending|this.nativePending;this.pending=0;this.nativePending=0;
       // A short tap between two game ticks must reach one tick. Current
       // movement takes priority over an earlier, opposite direction tap.
@@ -82,7 +98,7 @@
       const d=this.settings.deadzone,x=pad.axes[0]||0,y=pad.axes[1]||0;
       if(x<-d)mask|=bits.left;if(x>d)mask|=bits.right;
       if(y<-d)mask|=bits.up;if(y>d)mask|=bits.down;
-      for(let i=0;i<16;i++)if(pad.buttons[i]?.pressed||pad.buttons[i]?.value>.5)mask|=this.settings.mapping[i];
+      for(let i=0;i<16;i++)if(i!==this.settings.quickTurnButton&&(pad.buttons[i]?.pressed||pad.buttons[i]?.value>.5))mask|=this.settings.mapping[i];
       return mask;
     }
     mask(pads) {

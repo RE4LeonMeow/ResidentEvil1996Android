@@ -28,7 +28,10 @@ Module['preRun'] = [function () {
           files = await response.json();
         }
       }
+      if(!Module['re1DiagnosticsOnly'])files=globalThis.RE1Mods?.manifest(files)||files;
       FS.mkdirTree('/game/USA'); FS.mkdirTree('/persist');
+      const locale=globalThis.RE1Mods?.localization();
+      if(locale)FS.writeFile('/game/re1-localization.bin',locale);
       globalThis.RE1Diag?.stage('Restoring saves and settings');
       FS.mount(IDBFS, {}, '/persist');
       await new Promise((resolve, reject) => FS.syncfs(true, e => e ? reject(e) : resolve()));
@@ -44,6 +47,7 @@ Module['preRun'] = [function () {
       globalThis.RE1Diag?.log('Game file transport: '+(browserStorage?'Browser local files':nativeStorage?'Android direct chunks':'HTTP range fallback'));
       function readChunk(file, start, expected) {
         try {
+          const mod=globalThis.RE1Mods?.readFile(file.path,start,expected);if(mod)return mod;
           if(browserStorage)return browserStorage.read(file.path,start,expected);
           let raw;
           if (nativeStorage) {
@@ -95,6 +99,7 @@ Module['preRun'] = [function () {
             if (!chunk) {
               const expected = Math.min(chunkSize, file.size-start);
               globalThis.RE1Diag?.io(file.path);
+              globalThis.RE1Mods?.roomHint(file.path);
               chunk = readChunk(file, start, expected);
               while (cacheSize+chunk.length>budget && cache.size) {
                 const oldest = cache.keys().next().value;

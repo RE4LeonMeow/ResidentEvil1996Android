@@ -8,6 +8,14 @@
 
 namespace WebHD {
 constexpr unsigned MaxPixels=4u*1024*1024;
+constexpr unsigned MaxModPixels=16u*1024*1024;
+inline bool ModPageDimensions(int w,int h,int ow,int oh) {
+    return w>0&&h>0&&w<=4096&&h<=4096&&ow>=w&&oh>=h&&ow<=4096&&oh<=4096&&
+        unsigned(ow)<=MaxModPixels/unsigned(oh);
+}
+inline bool ModDimensions(int w,int h,int ow,int oh) {
+    return ModPageDimensions(w,h,ow,oh)&&unsigned(ow)*unsigned(h)==unsigned(oh)*unsigned(w);
+}
 inline bool Dimensions(int w,int h,int& ow,int& oh) {
     if(w<1||h<1||unsigned(w)>MaxPixels/unsigned(h))return false;
     const double scale=std::min({4.5,2048.0/w,2048.0/h,std::sqrt(double(MaxPixels)/(double(w)*h))});

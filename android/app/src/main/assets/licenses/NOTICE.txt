@@ -26,3 +26,14 @@ See FusionFix-GPL-3.0.txt and the source comments for the original files.
 Launcher social icons: X, Discord and GitHub SVG paths from Simple Icons 14.15.0,
 CC0-1.0. https://github.com/simple-icons/simple-icons/tree/14.15.0
 See SimpleIcons-CC0.txt. X, Discord and GitHub marks belong to their respective owners.
+
+Android mod import image decoding:
+libwebp 1.6.0 - https://github.com/webmproject/libwebp - BSD-3-Clause; see libwebp-BSD.txt and libwebp-PATENTS.txt.
+stb_image.h, nothings/stb commit 003501f6d7a8668ce8b6d875e34dd97ad0d5d5b5 - MIT; see stb-image-MIT.txt.
+Both run in the install worker only; imported PNG/WebP pixels retain straight alpha. No Seamless HD texture images or movies are bundled. Its authors' credits are retained in the importer compatibility metadata and installed mod details.
+
+Launcher heading typeface
+------------------------
+Compacta Bold (Compacta-Bold), supplied separately by the project maintainer,
+is used for launcher and dialog headings. The font is not covered by this
+repository's source-code license; its rights remain with its respective owner.

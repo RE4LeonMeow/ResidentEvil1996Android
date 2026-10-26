@@ -1,7 +1,9 @@
 # Android launcher (experimental)
 
-Target requested: Realme 10, Android 14. Minimum supported Android API: 29
-(Android 10), with an up-to-date Android System WebView and WebGL 1 or 2.
+Build 37: minimum Android API 28 (Android 9), with an
+updated compatible Android System WebView provider and WebGL 1 or 2.
+Android 9 device testing is pending; the compatibility APK is prepared for a
+Galaxy S8+ tester. The engine, rendering settings and game data are unchanged.
 
 This build runs the shared C++ engine as **wasm32 inside Android WebView**.
 It is not a native ARM64 rewrite. WebView runs on the phone's supported CPU
@@ -39,7 +41,8 @@ duration is stored with the pack.
 SHA-256-checked upstream pretrained graph. The Apache-2.0 license is bundled at
 `assets/licenses/FSRCNN.txt`. The model is compiled into a small worker-only
 SIMD WebAssembly module; no external service, downloaded image pack, model
-runtime or Android Internet permission is required. Android fetches the worker
+runtime is required for HD generation. The optional 1.1 release checker uses
+Android Internet permission independently of this offline builder. Android fetches the worker
 code and wasm in the parent WebView, then starts a Blob worker. No worker DNS
 interception is needed. Modern WebAssembly SIMD, OPFS and Web Locks are needed
 for generation. Installation may take a long time and several GB; progress,
@@ -346,8 +349,9 @@ The user subsequently reported successful gameplay with version 0.1.2.
    launcher checks the common boot resources and that room data is present;
    this is not an exhaustive asset-integrity check.
 4. Tap **Launch game**. The original PC game logic handles menus and gameplay.
-   Folder access is remembered. Nothing is uploaded; the app has no Internet
-   permission. Choose a local storage provider for reliable random file reads.
+   Folder access is remembered. Game files are not uploaded. The optional
+   update checker only requests public GitHub release metadata. Choose a local
+   storage provider for reliable random file reads.
 5. Use the gear button or Android Back for launcher settings. Adjust button
    size/opacity, hide controls, change controller bindings, or choose **Edit
    touch layout**, drag or resize each control, then **Save layout**. In-game Options

@@ -82,6 +82,8 @@
 #include "../marni/MarniSystem.h"
 #include "../system/AssetPath.h"
 #include "SpriteRenderer.h"
+#include "../platform/ModLocalization.h"
+#include <cstring>
 
 // ============================================================================
 // PrintText8x8 (0x00455420)
@@ -160,6 +162,7 @@ void PrintText8x8(short x, short y, unsigned char color, char shadow)
 // ============================================================================
 void PrintText8x14(short x, short y, unsigned char color, char flags)
 {
+    if(PortLocalizationActive()&&std::strcmp(PRINT_TEXT_BUFFER,"Yes  No")==0&&PortLocalizationYesNo(x,y,color))return;
     CMarniDirect3D* pD3D = (CMarniDirect3D*)g_pMarniDirect3D;
     if (pD3D == NULL) return;
 

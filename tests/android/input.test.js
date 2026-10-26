@@ -3,6 +3,21 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {Input,bits}=require('../../android/app/src/main/assets/web/input.js');
 const pad=(axes,pressed=[])=>({connected:true,mapping:'standard',axes,buttons:Array.from({length:16},(_,i)=>({pressed:pressed.includes(i)}))});
+test('controller R3 quick-turn fires once, buffers a short native tap and keeps normal input independent',()=>{
+ const i=new Input();let turns=0;i.onQuickTurn=()=>turns++;
+ i.updateNative((1<<11)|(1<<2),0,-1);assert.equal(i.poll(),bits.aim|bits.up);assert.equal(turns,1);
+ i.poll();i.poll();assert.equal(turns,1);
+ i.updateNative(0,0,0);i.poll();i.updateNative(1<<11,0,0);i.updateNative(0,0,0);i.poll();i.poll();assert.equal(turns,2);
+});
+test('browser quick-turn, remapping, disabling and pause/release do not repeat turns',()=>{
+ const i=new Input();let turns=0;i.onQuickTurn=()=>turns++;
+ i.poll([pad([0,0],[11])]);i.poll([pad([0,0],[11])]);assert.equal(turns,1);
+ i.clear();i.paused=true;i.poll([pad([0,0],[11])]);i.paused=false;i.poll([pad([0,0],[11])]);assert.equal(turns,1);
+ i.poll([pad([0,0])]);i.poll([pad([0,0],[11])]);assert.equal(turns,2);
+ i.settings.quickTurnButton=4;i.clear();i.poll([]);assert.equal(i.poll([pad([0,0],[4,0])]),bits.action);assert.equal(turns,3);
+ i.settings.quickTurnButton=-1;i.clear();assert.equal(i.poll([pad([0,0],[11])]),131072);assert.equal(turns,3);
+ assert.equal(new Input(JSON.parse(JSON.stringify(i.settings))).settings.quickTurnButton,-1);
+});
 test('simultaneous movement, aim and action survive independent finger releases',()=>{
  const i=new Input();i.press(1,'up');i.press(2,'aim');i.press(3,'action');assert.equal(i.mask([]),1|1024|256);
  i.release(3);assert.equal(i.mask([]),1|1024);i.release(1);assert.equal(i.mask([]),1024);i.clear();assert.equal(i.mask([]),0);

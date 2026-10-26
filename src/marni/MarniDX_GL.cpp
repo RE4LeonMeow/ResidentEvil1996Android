@@ -145,6 +145,8 @@ struct MarniDX::Impl {
         // std::map nodes remain stable while this slot holds a reference.
         HDTexture* hdImage = nullptr;
         WebTextureCoverage coverage;
+        std::vector<unsigned char> regionSource;
+        std::map<unsigned,MarniHandle> regions;
 #endif
     } slots[MARNI_MAX_TEXTURES];
 
@@ -195,6 +197,9 @@ struct MarniDX::Impl {
         StopInterpolation(this);
         boundTexture=~GLuint(0);
 #ifdef __EMSCRIPTEN__
+        auto regions=std::move(slots[h].regions);slots[h].regions.clear();
+        std::vector<unsigned char>().swap(slots[h].regionSource);
+        for(const auto& region:regions)if(region.second!=MARNI_NULL_HANDLE)ReleaseSlot(region.second);
         for(auto& tex:otherBound)tex=~GLuint(0);
 #endif
 #ifdef __EMSCRIPTEN__
@@ -1118,6 +1123,11 @@ MarniHandle MarniDX::CreateTexture(int width, int height, int bpp,
         }
         if(WebHDSize(key)>32)hdKey=key;
         else WebHDResult(0); // Unknown composites retain original pixels.
+        // Inventory icons are 40x30 sprites composited into mutable 256x256
+        // pages. Retain only those small unknown pages when a pack supplies
+        // icon regions; ordinary scenes/video have no region work or copies.
+        if(hdKey.empty()&&width==256&&height==256&&WebHDRegions())
+            p->slots[handle].regionSource.assign(upload,upload+size_t(width)*height*4);
     }
 #endif
     GLuint tex = 0;
@@ -1173,6 +1183,10 @@ BOOL MarniDX::UpdateTexturePixels(MarniHandle tex, const void* pixelData,
 
     StopInterpolation(p);
 #ifdef __EMSCRIPTEN__
+    auto regions=std::move(p->slots[tex].regions);p->slots[tex].regions.clear();
+    for(const auto& region:regions)if(region.second!=MARNI_NULL_HANDLE)p->ReleaseSlot(region.second);
+    if(!p->slots[tex].regionSource.empty())
+        p->slots[tex].regionSource.assign(static_cast<const unsigned char*>(pixelData),static_cast<const unsigned char*>(pixelData)+size_t(width)*height*4);
     p->slots[tex].coverage.analyze(static_cast<const unsigned char*>(pixelData),width,height);
 #endif
     glBindTexture(GL_TEXTURE_2D, p->slots[tex].tex);
@@ -1213,6 +1227,29 @@ void MarniDX::DrawSprite(float x, float y, float w, float h,
                          MarniSampler sampler, MarniBlend blend)
 {
 #ifdef __EMSCRIPTEN__
+    Impl* regionImpl=m_pImpl;
+    if(regionImpl&&tex!=MARNI_NULL_HANDLE&&tex<MARNI_MAX_TEXTURES&&!regionImpl->slots[tex].regionSource.empty()){
+        auto& source=regionImpl->slots[tex];
+        const float left=std::min(u0,u1)*source.w,top=std::min(v0,v1)*source.h;
+        const float right=std::max(u0,u1)*source.w,bottom=std::max(v0,v1)*source.h;
+        const int ix=int(floorf(left+.5f)),iy=int(floorf(top+.5f));
+        if(fabsf(left-ix)<.001f&&fabsf(top-iy)<.001f&&fabsf(right-left-40)<.001f&&fabsf(bottom-top-30)<.001f&&
+           ix>=0&&iy>=0&&ix+40<=source.w&&iy+30<=source.h){
+            const unsigned rect=unsigned(ix)|(unsigned(iy)<<8);
+            auto found=source.regions.find(rect);
+            if(found==source.regions.end()){
+                unsigned char pixels[40*30*4];
+                for(int row=0;row<30;row++)memcpy(pixels+row*40*4,source.regionSource.data()+((iy+row)*source.w+ix)*4,40*4);
+                char key[64];WebHD::Key(pixels,40,30,key);
+                const auto child=WebHDSize(key)>32?CreateTexture(40,30,32,pixels,nullptr,nullptr):MARNI_NULL_HANDLE;
+                found=source.regions.emplace(rect,child).first;
+            }
+            if(found->second!=MARNI_NULL_HANDLE){
+                tex=found->second;const bool flipX=u0>u1,flipY=v0>v1;
+                u0=flipX?1.f:0.f;u1=flipX?0.f:1.f;v0=flipY?1.f:0.f;v1=flipY?0.f:1.f;
+            }
+        }
+    }
     if(blend==MARNI_BLEND_ALPHA){
         if((color>>24)==0)return;
         Impl* p=m_pImpl;

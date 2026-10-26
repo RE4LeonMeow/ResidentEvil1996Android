@@ -16,6 +16,7 @@
 #include <cstdio>
 #include <cstring>
 #include "../system/AssetPath.h"
+#include "../platform/ModLocalization.h"
 
 extern void logos_state(void);
 extern void title_state(void);
@@ -410,6 +411,25 @@ static SaveScreenLayout GetSaveScreenLayout(void)
     // 0x004b0fe0 / 0x004b0fd0.
     L.headerNames  = s_pftHeaderTable;
     L.headerSuffix = s_pftGame;
+
+    // Port feature: use the compiled translation's save labels, while keeping
+    // the existing fixed-size reveal cells and the original save-file format.
+    if(PortLocalizationActive()&&GetAssetVersion()==0){
+        static const unsigned char empty[]={1,0};
+        static const unsigned char* characters[2];
+        static const unsigned char* locations[7];
+        static const unsigned char* exits[2];
+        static const unsigned char* headers[2];
+        for(unsigned i=0;i<2;i++)characters[i]=PortLocalizationText(3,5+i,L.charNames[i]);
+        for(unsigned i=0;i<7;i++)locations[i]=PortLocalizationText(3,10+i,L.locNames[i]);
+        exits[0]=PortLocalizationText(3,4,L.exitNames[0]);exits[1]=PortLocalizationText(3,3,L.exitNames[1]);
+        headers[0]=PortLocalizationText(3,2,L.headerNames[0]);headers[1]=PortLocalizationText(3,1,L.headerNames[1]);
+        L.charNames=characters;L.locNames=locations;L.exitNames=exits;L.headerNames=headers;
+        L.exitSuffix=empty;L.headerSuffix=empty;
+        L.overwritePrompt=PortLocalizationText(3,7,L.overwritePrompt);
+        L.yesNo=PortLocalizationSaveYesNo(L.yesNo);
+        L.headerX=112;
+    }
 
     return L;
 }

@@ -31,6 +31,7 @@ extern "C" {
 #include <string.h>
 #ifdef __EMSCRIPTEN__
 extern "C" void re1_web_hd_dynamic(int dynamic);
+#include "../web/mod_video.inl"
 #endif
 
 // audio.cpp - the movie audio stream (see its note on s_streamPcm).
@@ -83,6 +84,9 @@ BOOL   s_useAudio     = FALSE;
 // ---------------------------------------------------------------------------
 void FreeAll(void)
 {
+#ifdef __EMSCRIPTEN__
+    if(s_webVideo){WebModVideo(0,0);s_webVideo=false;}
+#endif
     plat_audio_stream_stop();
 
     if (s_tex != MARNI_NULL_HANDLE) {
@@ -469,6 +473,7 @@ BOOL plat_video_open_and_play(const char* path, int playToMs)
     }
     extern void re1_web_video_stage(const char* path);
     re1_web_video_stage(path);
+    if(WebModVideoOpen(path,playToMs)){s_webVideo=true;return TRUE;}
 #endif
 
     if (avformat_open_input(&s_fmt, path, NULL, NULL) < 0) {
@@ -554,6 +559,9 @@ BOOL plat_video_open_and_play(const char* path, int playToMs)
 
 void plat_video_play_from(int fromMs)
 {
+#ifdef __EMSCRIPTEN__
+    if(s_webVideo){WebModVideo(1,fromMs);return;}
+#endif
     if (s_fmt == NULL) return;
     const int fromFrame = (int)((double)fromMs / 1000.0 * s_fps + 0.5);
     s_playToFrame = 0;
@@ -567,6 +575,9 @@ void plat_video_play_from(int fromMs)
 
 void plat_video_stop(void)
 {
+#ifdef __EMSCRIPTEN__
+    if(s_webVideo){WebModVideo(2,0);return;}
+#endif
     s_active = FALSE;
 }
 
@@ -577,11 +588,17 @@ void plat_video_close(void)
 
 BOOL plat_video_is_active(void)
 {
+#ifdef __EMSCRIPTEN__
+    if(s_webVideo)return WebModVideo(3,0)?TRUE:FALSE;
+#endif
     return s_active;
 }
 
 BOOL plat_video_take_end_event(void)
 {
+#ifdef __EMSCRIPTEN__
+    if(s_webVideo)return WebModVideo(4,0)?TRUE:FALSE;
+#endif
     if (!s_endEvent) return FALSE;
     s_endEvent = FALSE;
     return TRUE;
@@ -589,6 +606,9 @@ BOOL plat_video_take_end_event(void)
 
 void plat_video_tick(void)
 {
+#ifdef __EMSCRIPTEN__
+    if(s_webVideo){WebModVideo(5,0);return;}
+#endif
     if (!s_active || s_fmt == NULL) return;
 
     // Target frame: the sound card's cursor when it is trustworthy, the wall

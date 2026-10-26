@@ -1,5 +1,14 @@
 'use strict';
 const $ = id => document.getElementById(id);
+// Native dialog autofocus can scroll long help text straight to its buttons.
+// Start at the heading, while retaining an explicit field target for forms.
+window.re1ShowDialog=(dialog,field)=>{
+  if(!dialog.open)dialog.showModal();
+  const target=field||dialog.querySelector('h2,h3')||dialog;
+  if(!field)target.tabIndex=-1;
+  target.focus({preventScroll:true});
+  dialog.scrollTop=0;
+};
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem('re1.controls') || '{}'); } catch (_) {}
 const input = globalThis.RE1Input = new RE1InputModel.Input(saved);
@@ -25,6 +34,7 @@ $('aspect').value=RE1Presentation.aspect;
 $('aspect').onchange=()=>RE1Presentation.setAspect($('aspect').value);
 let launched=false, launching=false, ready=false, editing=false, background=false;
 window.re1SaveDataAllowed=()=>!launched&&!launching;
+window.re1ModsAllowed=()=>!launched&&!launching;
 let menuContext=true, editorMovement=input.settings.movement, selectedControl='action';
 let graphicsOnly=false, restarting=false, failed=false;
 let renderer=localStorage.getItem('re1.renderer')||'auto';
@@ -135,16 +145,33 @@ window.re1TouchContext=menu=>{
   menu=!!menu;if(menu===menuContext)return;
   menuContext=menu;clear();paint();
 };
-function pause(){const paused=background||$('settings').open||$('credits').open||$('donation').open||$('saves').open||editing;input.paused=paused;window.RE1Diag?.paused(paused);window.AndroidLauncher?.paused?.(paused);clear();if(ready)Module._re1_web_suspend(paused?1:0);}
+function pause(){const paused=background||$('settings').open||$('credits').open||$('donation').open||$('saves').open||$('mods')?.open||editing;input.paused=paused;window.RE1Diag?.paused(paused);window.AndroidLauncher?.paused?.(paused);clear();if(ready)Module._re1_web_suspend(paused?1:0);}
 window.re1SaveDialogChanged=pause;
+window.re1ModsDialogChanged=pause;
 window.re1Lifecycle=hidden=>{background=hidden;pause();if(hidden&&ready){Module._re1_web_settings_save();window.re1Sync?.();}};
 window.addEventListener('blur',clear);
 document.addEventListener('visibilitychange',()=>window.re1Lifecycle(document.hidden));
 function finishLayout(){editing=false;$('touch').classList.remove('editing');$('layout-bar').hidden=true;persist();paint();}
-window.re1OpenSettings=()=>{if($('saves').open){if(!window.RE1SaveData?.busy()){$('saves').close();pause();}return;}if($('donation').open){$('donation').close();pause();return;}if($('credits').open){$('credits').close();pause();return;}if(editing)finishLayout();refreshLoadingSetting();if(!$('settings').open)$('settings').showModal();pause();};
+window.re1OpenSettings=()=>{if(window.RE1Mods?.close())return;if($('saves').open){if(!window.RE1SaveData?.busy()){$('saves').close();pause();}return;}if($('donation').open){$('donation').close();pause();return;}if($('credits').open){$('credits').close();pause();return;}if(editing)finishLayout();refreshLoadingSetting();$('restore-game-actions').disabled=!ready;if(!$('settings').open)window.re1ShowDialog($('settings'));pause();};
+let restoringGameActions=false;
+$('restore-game-actions').onclick=()=>{
+  if(!ready||restoringGameActions)return;
+  const status=$('game-actions-status');
+  if(typeof Module._re1_web_restore_game_actions!=='function'){
+    status.textContent='This engine does not have game-action recovery. Install the matching APK.';return;
+  }
+  restoringGameActions=true;
+  try{
+    clear();
+    if(Module._re1_web_restore_game_actions()!==1)throw Error('Open Controls & settings to pause the game first.');
+    status.textContent='Game actions restored: AIM readies the weapon, ITEMS opens inventory and PAUSE opens game options. Save again to keep these bindings in that slot.';
+    RE1Diag.log('Game action bindings restored. Save again to keep the recovered layout in that slot.');
+  }catch(error){status.textContent='Could not restore game actions: '+error.message;}
+  finally{restoringGameActions=false;}
+};
 $('gear').onclick=$('launcher-settings').onclick=window.re1OpenSettings;
 $('launcher-credits').onclick=async()=>{
-  $('credits-text').textContent='Loading credits…';$('credits').showModal();pause();
+  $('credits-text').textContent='Loading credits…';window.re1ShowDialog($('credits'));pause();
   if(location.protocol==='file:'){
     const source=$('bundled-credits');
     $('credits-text').textContent=source?source.content.textContent:'Credits unavailable in this package.';
@@ -160,10 +187,10 @@ $('close-credits').onclick=()=>{$('credits').close();pause();};
 $('credits').addEventListener('cancel',()=>setTimeout(pause,0));
 $('launcher-donation').onclick=()=>{
   $('donation-warning').hidden=false;$('donation-details').hidden=true;
-  $('donation').showModal();$('donation-cancel').focus();pause();
+  window.re1ShowDialog($('donation'));pause();
 };
 $('donation-ok').onclick=()=>{
-  $('donation-warning').hidden=true;$('donation-details').hidden=false;$('donation-close').focus();
+  $('donation-warning').hidden=true;$('donation-details').hidden=false;window.re1ShowDialog($('donation'));
 };
 const closeDonation=()=>{$('donation').close();pause();};
 $('donation-cancel').onclick=$('donation-close').onclick=closeDonation;
@@ -189,6 +216,13 @@ $('show-fps').checked=!!input.settings.showFPS;
 RE1Diag.showFPS(!!input.settings.showFPS);
 $('show-fps').onchange=()=>{input.settings.showFPS=$('show-fps').checked;RE1Diag.showFPS(input.settings.showFPS);persist();};
 const names=['A / Cross','B / Circle','X / Square','Y / Triangle','L1','R1','L2','R2','Select','Start','L3','R3','D-pad up','D-pad down','D-pad left','D-pad right'];
+input.onQuickTurn=()=>{if(ready&&!input.paused)Module._re1_web_quick_turn();};
+const quickTurnLabel=document.createElement('label'),quickTurnSelect=document.createElement('select');
+quickTurnLabel.textContent='Quick turn shortcut';quickTurnSelect.id='controller-quick-turn';quickTurnSelect.add(new Option('Disabled',-1));
+names.forEach((name,index)=>quickTurnSelect.add(new Option(name,index)));quickTurnSelect.value=input.settings.quickTurnButton;
+quickTurnSelect.onchange=()=>{clear();input.settings.quickTurnButton=Number(quickTurnSelect.value);persist();};
+quickTurnLabel.append(quickTurnSelect);$('bindings').before(quickTurnLabel);
+const quickTurnHint=document.createElement('p');quickTurnHint.textContent='Default: R3 (press the right stick). Tap once for a 180° turn during player control. This shortcut replaces the chosen button’s ordinary binding.';quickTurnLabel.after(quickTurnHint);
 for(const [action,def] of Object.entries(layout)){
   if(!RE1InputModel.bits[action])continue; // TURN is an immediate one-shot action
   const label=document.createElement('label');label.textContent=def[2];
@@ -214,6 +248,7 @@ $('reset').onclick=()=>{
   $('hide-touch').checked=false;
   $('movement').value='arrows';$('show-fps').checked=false;RE1Diag.showFPS(false);
   $('menu-arrows').checked=true;
+  quickTurnSelect.value=input.settings.quickTurnButton;
   document.querySelectorAll('#bindings select').forEach((select,i)=>{
     const value=input.settings.mapping[i];
     if(!Array.from(select.options).some(x=>Number(x.value)===value))select.add(new Option('Game default',value));
@@ -238,11 +273,12 @@ $('edit-layout').onclick=()=>{
 };
 $('save-layout').onclick=()=>window.re1OpenSettings();
 $('folder').onclick=()=>{const bridge=window.RE1BrowserStorage||window.AndroidLauncher;bridge?.selectFolder();};
-function refreshStorage(){if(launched)return;const bridge=window.RE1BrowserStorage||window.AndroidLauncher;$('status').textContent=bridge?bridge.status():'Use the Android app to select local game files.';const busy=!!window.RE1HDPack?.busy();const saveBusy=!!window.RE1SaveData?.busy();$('launch').disabled=launching||!bridge?.ready()||busy||saveBusy;$('folder').disabled=busy||saveBusy||!!bridge?.busy?.();$('graphics-test').disabled=launching||busy||saveBusy;$('launcher-saves').disabled=launching;}
-setInterval(refreshStorage,600);window.addEventListener('re1-storage-changed',refreshStorage);window.addEventListener('re1-hd-changed',refreshStorage);refreshStorage();
+function refreshStorage(){if(launched)return;const bridge=window.RE1BrowserStorage||window.AndroidLauncher;$('status').textContent=bridge?bridge.status():'Use the Android app to select local game files.';const busy=!!window.RE1HDPack?.busy();const saveBusy=!!window.RE1SaveData?.busy()||!!window.RE1Mods?.busy();$('launch').disabled=launching||!bridge?.ready()||busy||saveBusy;$('folder').disabled=busy||saveBusy||!!bridge?.busy?.();$('graphics-test').disabled=launching||busy||saveBusy;$('launcher-saves').disabled=launching;$('launcher-mods').disabled=launching||busy||saveBusy;}
+setInterval(refreshStorage,600);window.addEventListener('re1-storage-changed',refreshStorage);window.addEventListener('re1-hd-changed',refreshStorage);window.addEventListener('re1-mods-changed',refreshStorage);refreshStorage();
 window.re1Failure=message=>{
+  window.RE1ModVideo?.close();
   failed=true;ready=false;window.RE1Diag?.stop();$('error-text').textContent=message;
-  if(!$('error').open)$('error').showModal();input.paused=true;clear();
+  if(!$('error').open)window.re1ShowDialog($('error'));input.paused=true;clear();
   Module['SDL2']?.audioContext?.suspend().catch(()=>{});
 };
 function returnToLauncher() {
@@ -273,10 +309,11 @@ window.re1Ready=()=>{
   Module._re1_web_set_smooth($('smooth-frames').checked?1:0);
   $('canvas').focus({preventScroll:true});
   RE1Diag.stage('Starting game engine');
+  if(window.RE1Mods?.localization()&&(typeof Module._re1_web_localization_load!=='function'||Module._re1_web_localization_load()!==1)){re1Failure('The installed translation cache could not be loaded. Disable or reinstall that translation in Mods, and use a matching engine/APK build.');return;}
   Module.callMain(graphicsOnly?['--graphics-test']:[]);pause();
 };
 async function launch(testOnly) {
-  if(launched||launching||window.RE1SaveData?.busy()||$('saves').open)return;
+  if(launched||launching||window.RE1SaveData?.busy()||window.RE1Mods?.busy()||$('saves').open||$('mods')?.open)return;
   if(window.RE1HDPack?.busy())return;
   launching=true;
   $('launch').disabled=true;
@@ -288,7 +325,8 @@ async function launch(testOnly) {
     if(testOnly){const tone=audio.createOscillator(),gain=audio.createGain();tone.frequency.value=440;gain.gain.value=.08;tone.connect(gain).connect(audio.destination);tone.start();tone.stop(audio.currentTime+.5);}
   }
   window.RE1BrowserStorage?.launch();
-  try{Module['re1HDActive']=!testOnly&&await window.RE1HDPack?.prepare();}
+  $('status').textContent='Preparing game and installed mods…';
+  try{if(!testOnly)await window.RE1Mods?.prepare();Module['re1HDActive']=!testOnly&&await window.RE1HDPack?.prepare();}
   catch(error){launching=false;re1Failure(String(error.message||error));return;}
   try{await window.RE1SaveData?.startGame();}
   catch(error){launching=false;re1Failure(String(error.message||error));return;}
@@ -299,6 +337,8 @@ async function launch(testOnly) {
   if(!probe&&selected==='auto'){probe=probeCanvas.getContext('webgl');selected='2';}
   else if(selected==='auto')selected='3';
   if(!probe){re1Failure('OpenGL ES '+selected+' is unavailable. Try the other renderer in settings and update '+(window.RE1BrowserStorage?'your browser.':'Android System WebView.'));return;}
+  try{window.RE1Mods?.graphicsLimit(probe.getParameter(probe.MAX_TEXTURE_SIZE));}
+  catch(error){launching=false;re1Failure(error.message);return;}
   RE1Diag.begin();RE1Diag.log('Selected OpenGL ES '+selected);
   Module['re1GLES']=selected;Module['re1DiagnosticsOnly']=testOnly;
   Module['re1SkipMovies']=$('skip-movies').checked;

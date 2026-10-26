@@ -77,6 +77,14 @@ with sync_playwright() as p:
     assert page.evaluate('RE1Input.poll()') == 1024
     page.evaluate('re1Native(0,0,0,true)')
     assert page.evaluate('RE1Input.poll()') == 0
+    page.evaluate('()=>{ready=true;window.testTurns=0;Module._re1_web_quick_turn=()=>{testTurns++;return 1;};}')
+    page.evaluate('re1Native(1<<11,0,0,true);re1Native(0,0,0,true)')
+    page.evaluate('RE1Input.poll();RE1Input.poll()')
+    assert page.evaluate('testTurns')==1
+    page.evaluate('re1Native(1<<11,0,0,true);RE1Input.poll();RE1Input.poll()')
+    assert page.evaluate('testTurns')==2
+    page.evaluate('re1Native(0,0,0,true);RE1Input.poll();ready=false')
+    assert page.locator('#controller-quick-turn').input_value()=='11'
     assert not errors, errors
     browser.close()
 server.shutdown()

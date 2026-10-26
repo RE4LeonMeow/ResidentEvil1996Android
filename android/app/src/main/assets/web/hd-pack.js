@@ -56,8 +56,9 @@
   function render(){
     install.textContent=meta?'Reinstall HD pack':'Install HD pack';
     sharpness.disabled=busy||game;
-    install.disabled=busy||game||!initialized||!sourceFiles.length;cancel.hidden=!busy;
-    remove.hidden=!meta;remove.disabled=!initialized||busy||game;toggle.disabled=!initialized||busy||game||!meta||meta.version!==2||source!==meta.source;
+    const modsBusy=!!window.RE1Mods?.busy();
+    install.disabled=busy||modsBusy||game||!initialized||!sourceFiles.length;cancel.hidden=!busy;
+    remove.hidden=!meta;remove.disabled=!initialized||busy||modsBusy||game;toggle.disabled=!initialized||busy||modsBusy||game||!meta||meta.version!==2||source!==meta.source;
     progress.hidden=!busy;
     if(!busy&&!error)status.textContent=meta?(meta.version!==2?'A previous 720p pack is installed. Reinstall for AI 1080p.':source&&meta.source!==source?'HD pack belongs to a different game folder. Build a pack for this folder.':meta.count+' prepared images · '+(meta.bytes/1048576).toFixed(0)+' MB · '+(toggle.checked?'enabled':'disabled')+'. FSRCNN AI · 1080p · '+sharpLabel(meta.sharpness)+'.'+((meta.sharpness||0)!==Number(sharpness.value)?' Reinstall to apply '+sharpLabel(Number(sharpness.value))+' sharpness.':'')):'Build a local AI 1080p pack from your game files. Original files stay intact.';
     updateTime();
@@ -145,7 +146,7 @@
   sharpness.onchange=()=>{localStorage.setItem('re1.hd.sharpness',sharpness.value);render();};
   toggle.onchange=()=>{localStorage.setItem('re1.hd.enabled',String(toggle.checked));render();};
   install.onclick=async()=>{
-    if(busy||game)return;
+    if(busy||game||window.RE1Mods?.busy())return;
     try{
       error=false;await refreshSource();if(!sourceFiles.length)throw Error('Select your game folder first.');
       busy=true;buildClock=new RE1HDTime.BuildClock(performance.now());render();status.textContent='Preparing HD pack…';progress.removeAttribute('value');
@@ -159,6 +160,7 @@
   };
   remove.onclick=()=>{if(!busy&&!game){busy=true;render();worker.postMessage({type:'remove'});}};
   window.addEventListener('re1-storage-changed',()=>{if(!busy&&!game)refreshSource().catch(e=>{status.textContent=e.message;});});
+  window.addEventListener('re1-mods-changed',render);
   // Native indexing finishes asynchronously without a DOM event.
   let wasReady=false;
   setInterval(()=>{if(buildClock)updateTime();},1000);

@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.1 (build 42) - Android mods and optional update checker
+
+- Includes the mod loader, full SHDP adapter, compatible PC file replacements, Classic REbirth XML translation adapter and offline preparation tool developed in the 1.02 previews.
+- Updated Mods help and README with direct imports, preparation steps, trusted community sources, priority rules and unsupported code patches.
+- Broadened the beginner guide to texture mods, including Jill's two-palette reskin workflow, and kept large HD packs as examples.
+- Moved the update badge to the top left, made long dialogs start at their headings and applied the supplied Compacta Bold to launcher/dialog titles.
+- Removed the unused header space above the launcher panel. The Update button now appears only when a newer stable release is available; the status text still allows manual checks.
+- Added an explicit Restore game actions option for controller layouts carried by old/PC saves. It restores game defaults without resetting touch customization or launcher controller mappings; save again to retain it in that slot.
+- Removed the obsolete ANDROID9-TEST.md preview document.
+- Added a launcher update badge using public GitHub stable releases, an Offline mode state, manual retry and an automatic-check opt-out. Updates open GitHub and are never forced or installed automatically.
+- Added INTERNET and ACCESS_NETWORK_STATE permissions for bounded HTTPS release metadata checks. Gameplay, saves, mod installation and HD generation remain local.
+- Retains the 1.01 Android controller fix, adds a configurable R3 quick-turn shortcut and includes experimental Android 9 compatibility. Browser edition is unchanged.
+
+## 1.02 preview (build 38) - Classic REbirth translation compatibility
+
+- Added an experimental data adapter for Classic REbirth XML translations: room dialogue, global messages, item names/descriptions, save labels, Yes/No labels, compatible Latin font atlases and document PNGs.
+- Translations compile during installation and use cached native text during gameplay. The original GOG choice/action bytes remain authoritative for item use, keys and puzzle prompts.
+- Added per-mod compatibility reports and clear errors for nested Classic REbirth archives. Added OGG replacements alongside matching GOG WAV resources.
+- Kept model resource imports and the existing SHDP adapter. Translation packs must have priority over packs replacing the same font/UI art. Windows plugins, executable patches and Classic REbirth-specific gameplay logic remain unsupported.
+- Added a compatibility guide and regression checks. Supplied mod/game assets are not bundled with the application or source.
+
+## 1.02 preview (build 33) - Android mod support
+
+- Added a Mods menu with ZIP import, enabling/disabling, priority order, removal and pack credits. The help button links to the Discord server's #mods channel.
+- Added texture and game-data overlays stored separately from the original GOG files and saves.
+- Added direct import of the full RE1 Seamless HD 1.1 texture ZIP, with the original pack credits. Additional stair/door pages, padded foreground masks and the typewriter background are adapted. Compatible MP4 movies map to GOG names and use WebView media playback. Windows plugins, Mediakite room patches and Director’s Cut assets remain excluded.
+- Imported PNG/WebP/JPEG textures are decoded during installation. Their resolution and straight-alpha pixels are retained, with compressed local storage and asynchronous gameplay loading.
+- Added a configurable controller quick-turn shortcut (R3 by default), a beginner mod-making guide and an offline PNG export/ZIP authoring tool.
+- Kept the existing Android HD builder and controller fixes. The standalone browser edition is unchanged.
+
+
 ## [1.3.0](https://github.com/ecruells/resident-evil-pc-decomp/compare/residentevil-v1.2.0...residentevil-v1.3.0) (2026-09-27)
 
 

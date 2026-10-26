@@ -2,7 +2,27 @@
 #include "platform/web/hd_neural.h"
 #include <cstring>
 #include <zlib.h>
+#include <webp/decode.h>
+#define STBI_NO_STDIO
+#define STBI_ONLY_PNG
+#define STBI_ONLY_JPEG
+#define STBI_MAX_DIMENSIONS 4096
+#define STB_IMAGE_IMPLEMENTATION
+#include "third_party/stb_image.h"
 extern "C" {
+int re1_mod_decode(const unsigned char* input,int bytes,int w,int h,unsigned char* output) {
+    if(!input||!output||bytes<1||bytes>64*1024*1024||w<1||h<1||w>4096||h>4096||unsigned(w)>WebHD::MaxModPixels/unsigned(h))return 0;
+    int width=0,height=0;
+    if(WebPGetInfo(input,bytes,&width,&height)) {
+        if(width!=w||height!=h)return 0;
+        return WebPDecodeRGBAInto(input,bytes,output,unsigned(w)*h*4,w*4)?1:0;
+    }
+    int channels;
+    if(!stbi_info_from_memory(input,bytes,&width,&height,&channels)||width!=w||height!=h)return 0;
+    unsigned char* rgba=stbi_load_from_memory(input,bytes,&width,&height,&channels,4);
+    if(!rgba)return 0;
+    memcpy(output,rgba,unsigned(w)*h*4);stbi_image_free(rgba);return 1;
+}
 const char* re1_hd_key(const unsigned char* rgba,int w,int h) {
     static char key[64];int ow,oh;
     if(!rgba||!WebHD::Dimensions(w,h,ow,oh))return "";

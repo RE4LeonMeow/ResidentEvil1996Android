@@ -1,0 +1,8 @@
+/* The badge belongs to the launcher and disappears during gameplay. */
+#updates{position:absolute;top:max(10px,env(safe-area-inset-top));left:max(12px,env(safe-area-inset-left));display:flex;align-items:center;gap:8px;max-width:calc(40% - max(12px,env(safe-area-inset-left)) - 12px);padding:4px 6px;border:1px solid #74776e;background:#101412f5;border-radius:6px;font-size:12px}
+#updates button{font-size:12px;padding:8px 10px;min-height:36px;margin:0}
+#update-status{min-width:0;overflow-wrap:anywhere;background:transparent;border-color:transparent;color:#d7d9cf;text-align:left}
+#update-open{flex-shrink:0;background:#202723;border-color:#777d70}
+#updates[data-state="available"] #update-open{color:#ffe2a4;border-color:#e9c280;box-shadow:0 0 12px #e9c28060;text-shadow:0 0 6px #f1b83b80}
+#updates[data-state="available"] #update-status{color:#ffe2a4}
+#updates[data-state="offline"] #update-status{color:#bec3bb}

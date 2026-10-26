@@ -246,6 +246,9 @@ with sync_playwright() as p:
     assert controls.locator('#joystick').is_visible();assert controls.locator('#touch-up').is_hidden()
     controls.evaluate('RE1Input.clear()')
     assert controls.evaluate("getComputedStyle(document.querySelector('#touch-action')).webkitTapHighlightColor")=='rgba(0, 0, 0, 0)'
+    # Undo the synthetic touch overlay before using the launcher again. Normal
+    # launcher paint keeps it hidden until launch or layout editing.
+    controls.evaluate("document.querySelector('#touch').hidden=true")
     controls.locator('#launcher-settings').click();controls.locator('#movement').select_option('arrows')
     controls.locator('#edit-layout').click();assert controls.locator('#joystick').is_hidden();assert controls.locator('#touch-up').is_visible()
     controls.close()
