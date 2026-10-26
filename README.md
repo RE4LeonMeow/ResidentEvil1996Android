@@ -4,7 +4,7 @@
 
 This update adds Android mod support: texture packs, compatible PC model and
 sound replacements, and experimental Classic REbirth XML translations. There
-is a mod-making guide and a preparation tool below.
+is a beginner mod-making guide and an optional **Mod Helper** below.
 Android 9 support is experimental; update Android System WebView to the latest
 compatible version offered by Google Play and try **Test graphics & sound**.
 
@@ -47,7 +47,11 @@ compatible with this port.
 Select your own USA GOG game folder, open **Mods**, tap **+** and choose a ZIP.
 The **?** button has the same quick compatibility guide. Mods are Android-only.
 
-### What can I install without conversion?
+**New to modding?** Start with [Bring a PC mod to Android, step by step](docs/PORTING_PC_MODS.md).
+It shows which files to use, how to ZIP them and when a mod needs more work.
+To paint your own textures instead, use [Make your first texture mod](docs/ANDROID_MODS.md#make-your-first-texture-mod).
+
+### Which mods can I install directly?
 
 | Pack | What to do |
 | --- | --- |
@@ -55,7 +59,8 @@ The **?** button has the same quick compatibility guide. Mods are Android-only.
 | Compatible PC character/model or sound replacements | Import the ZIP with its original game folders and filenames, such as `Enemy`, `Players`, `Sound` or `Voice`. The resources must match the USA GOG game and supported formats. |
 | Full official **RE_SHDP_1.1.zip** | Import directly. Use the full release pack, not its small patch or GitHub source-code ZIP. Compatible textures and MP4 movies are mapped by the importer. |
 
-These packs do not need a `mod.json`. PC ZIPs can include `mod-info.txt` for
+Compatible PC replacement ZIPs and the supported SHDP release do not need you
+to create a `mod.json`. PC ZIPs can include `mod-info.txt` for
 name and description; otherwise the launcher lets you enter them. Use
 **Edit details** to change them later. RAR, 7z and split downloads need to be
 extracted first, then ZIP the actual mod folders together. Do not put the RAR
@@ -69,12 +74,16 @@ or 7z file inside another ZIP.
   document pages during installation; you do not need Classic REbirth on the
   phone. The supplied Polish translation was tested. Other translations need
   the same supported formats and font layout.
-- Use the [preparation guide and tool](docs/CLASSIC_REBIRTH_MODS.md) to assemble
-  such a translation. On Windows, install Node.js LTS and drag its extracted
-  folder onto `tools/mods/Prepare-Rebirth-Mod.cmd`. Or run
-  `node tools/mods/pack.js rebirth "EXTRACTED MOD FOLDER"`. There are manual
-  phone steps too. The tool prepares supported data; it is not a universal
-  Classic REbirth converter.
+- The optional **Mod Helper** checks and packages translations that already
+  meet the [supported format requirements](docs/CLASSIC_REBIRTH_MODS.md).
+  Download `RE1-Mod-Helper.zip` from [Releases](https://github.com/RE4LeonMeow/ResidentEvil1996Android/releases),
+  or use `tools/mods` in the source. Install Node.js LTS and drag the extracted
+  translation folder onto **Mod-Helper.cmd**. The old
+  `Prepare-Rebirth-Mod.cmd` name still works. **This is a checking and ZIP
+  packaging helper, not a mod converter.** It cannot supply missing fonts,
+  repair unsupported text commands, change model formats or run Windows code.
+  A successful check still needs in-game testing. There are manual phone
+  steps in the guide too.
 - **Translated HD/hires add-ons:** install their required base translation
   first. Arbitrary `hires` layouts and hashes need a dedicated mapping, so the
   tool cannot guarantee them. An HD add-on is not necessarily a standalone translation pack.
@@ -104,7 +113,7 @@ mean a translation failed. A missing glyph can show `?` if that character is use
 Want to make your own? Start with the [step-by-step mod guide](docs/ANDROID_MODS.md).
 It exports editable PNGs from your own files and builds installable ZIPs, with
 no APK rebuild or npm packages. See [Classic REbirth compatibility](docs/CLASSIC_REBIRTH_MODS.md)
-for detailed conversion limits. The [SHDP example](docs/SHDP_COMPATIBILITY.md)
+for supported files, common errors and limits. The [SHDP example](docs/SHDP_COMPATIBILITY.md)
 shows how one larger PC texture pack is adapted. Keep original authors' credits and respect permissions
 when sharing a prepared mod.
 

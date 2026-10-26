@@ -5,6 +5,10 @@ It includes everything since the public 1.01 controller fix: the mod loader,
 SHDP and supported translation adapters, authoring tools, controller quick turn,
 Android 9 compatibility work and the optional update checker.
 
+**Already released 1.1?** For the later documentation/helper-only update, use
+[Update Mod Helper and the guides](UPDATE_MOD_HELPER.md). That update includes
+the description-encoding fix and uses the existing 1.1 APK.
+
 ## Replace the source on Windows
 
 1. Open Git Bash **inside your existing Android repository folder**. Check
@@ -51,7 +55,7 @@ is safe when your 1.01 checkout never had that file.
 2. Create tag **`v1.1`**, targeting your updated `main`, with title
    **Resident Evil Android 1.1**.
 3. Add the release notes and attach `resident-evil-android-1.1.apk`.
-   You can also attach the full source ZIP and standalone preparation tool.
+   You can also attach the full source ZIP and standalone **RE1-Mod-Helper.zip**.
 4. Publish it as a normal stable release when you are ready. Do not mark it
    as a prerelease if you want stable update checks to include it. Leave
    **Set as the latest release** selected.

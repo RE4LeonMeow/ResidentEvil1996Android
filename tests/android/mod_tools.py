@@ -71,6 +71,56 @@ with tempfile.TemporaryDirectory(prefix='re1 mod tools ') as temp:
         assert z.read('notices/README.txt')==(download/'README.txt').read_bytes()
         assert z.read('Movie/pu.mp4')==(download/'Movie/pu.mp4').read_bytes()
     assert before=={p.relative_to(download):p.read_bytes() for p in download.rglob('*') if p.is_file()}
+    # Legacy description encodings must not block otherwise supported packs.
+    # The released APK still receives UTF-8 credits, and the original bytes
+    # remain in notices/. Game XML/media and the input folder stay untouched.
+    descriptions=[
+        ('Windows ANSI', 'Traducción al español. Autor: José.\r\n', 'cp1252', []),
+        ('Polish ANSI', 'Pełne tłumaczenie. Autor: Łukasz.\r\n', 'cp1250', ['--description-encoding','windows-1250']),
+        ('UTF16 LE', 'Créditos: José y Łukasz.\r\n', 'utf-16', []),
+        ('UTF16 BE', 'Créditos: José y Łukasz.\r\n', 'utf-16-be', []),
+        ('Explicit UTF16', 'Créditos: José.\r\n', 'utf-16-le', ['--description-encoding','utf-16le']),
+    ]
+    for label,text,encoding,options in descriptions:
+        original=text.encode(encoding)
+        if label=='UTF16 BE':original=b'\xfe\xff'+original
+        (mod/'description.txt').write_bytes(original)
+        output=base/(label+'.zip')
+        run('rebirth',download,'--out',output,*options)
+        with zipfile.ZipFile(output) as z:
+            assert z.testzip() is None
+            assert z.read('description.txt').decode('utf-8')==text
+            assert z.read('notices/original-description.txt')==original
+            for name in expected:
+                if name!='description.txt':assert z.read(name)==(mod/name).read_bytes(),name
+            assert z.read('Movie/pu.mp4')==(download/'Movie/pu.mp4').read_bytes()
+        assert (mod/'description.txt').read_bytes()==original
+        report=output.with_suffix('.preparation.txt').read_text(encoding='utf-8')
+        assert 'Converted description.txt' in report
+        if label=='Windows ANSI':assert 'assuming Windows-1252' in report
+    failed=base/'bad encoding.zip'
+    run('rebirth',download,'--out',failed,'--description-encoding','unknown-codepage',ok=False)
+    assert not failed.exists() and not failed.with_suffix('.preparation.txt').exists()
+    (mod/'description.txt').write_bytes(b'\xe9'*(2*1024*1024))
+    result=run('rebirth',download,'--out',failed,ok=False)
+    assert 'after UTF-8 conversion' in result.stderr and not failed.exists()
+    (mod/'description.txt').write_bytes(before[pathlib.Path('translation files/description.txt')])
+    # UTF-8 credits, including their BOM, are copied exactly as before.
+    bom=b'\xef\xbb\xbfCr\xc3\xa9ditos de autor\r\n';(mod/'description.txt').write_bytes(bom)
+    output=base/'BOM.zip';run('rebirth',download,'--out',output)
+    with zipfile.ZipFile(output) as z:
+        assert z.read('description.txt')==bom and 'notices/original-description.txt' not in z.namelist()
+    (mod/'description.txt').write_bytes(before[pathlib.Path('translation files/description.txt')])
+    # Encoding fallback applies only to metadata, never translated game XML.
+    (mod/'misc.xml').write_bytes('<Strings><Text>español</Text></Strings>'.encode('cp1252'))
+    result=run('rebirth',download,'--out',failed,ok=False)
+    assert 'misc.xml must be UTF-8' in result.stderr and not failed.exists()
+    (mod/'misc.xml').write_bytes(before[pathlib.Path('translation files/misc.xml')])
+    # A description fix must not hide a genuinely missing required font.
+    atlas=(mod/'Data/PBFONT0.tim').read_bytes();(mod/'Data/PBFONT0.tim').unlink()
+    result=run('rebirth',download,'--out',failed,ok=False)
+    assert 'does not include Data/PBFONT0.tim' in result.stderr and not failed.exists()
+    (mod/'Data/PBFONT0.tim').write_bytes(atlas)
     unchanged=prepared.read_bytes();run('rebirth',download,'--out',prepared,ok=False);assert prepared.read_bytes()==unchanged
     run('rebirth',download,'--out',prepared,'--overwrite')
     run('rebirth',download,'--out',mod/'inside.zip',ok=False)
@@ -96,3 +146,4 @@ with tempfile.TemporaryDirectory(prefix='re1 mod tools ') as temp:
     run('rebirth',download,'--out',trap,'--overwrite');assert (mod/'misc.xml').read_bytes()==saved
 print('PASS: beginner new/export/build commands, paths with spaces, case-insensitive game lookup, lossless PNG bytes, readable ZIP CRCs, private-file exclusion and traversal rejection')
 print('PASS: Classic REbirth preparation, nested folders, automatic/separate movies, UTF-8 names/credits, unchanged source bytes, exclusion report, overwrite protection, duplicate/DTD/symlink/output-path rejection')
+print('PASS: Windows-1252/1250 and UTF-16 description normalization, exact original credits retained, UTF-8 BOM preservation, strict XML validation and missing-font rejection')

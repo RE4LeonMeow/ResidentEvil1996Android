@@ -1,5 +1,18 @@
 # Changelog
 
+## Mod Helper and beginner guides - Android 1.1 APK unchanged
+
+- Named the standalone checking/packaging utility Mod Helper, with Mod-Helper.cmd and a compatibility shortcut for the old command-file name.
+- Added a step-by-step guide to identifying PC mods, packaging compatible model/audio files, handling textures and checking translation requirements.
+- Explained common errors, unsupported formats, safe testing and what needs an author or engine developer instead of another ZIP.
+- Kept the description-encoding hotfix below. These source/tool/documentation changes do not require a new APK.
+
+## Preparation tool hotfix - Android 1.1 APK unchanged
+
+- Accepts Windows-1252 and BOM-marked UTF-16 descriptions in older Classic REbirth packs, with an explicit description-encoding option for other code pages.
+- Writes UTF-8 description metadata for the existing importer and retains the original credits byte-for-byte under notices/. Source files, game XML, images and media stay unchanged.
+- Explains when a translation is missing the font atlas required by the current adapter. The tool does not invent a missing font or relax translation XML validation.
+
 ## 1.1 (build 42) - Android mods and optional update checker
 
 - Includes the mod loader, full SHDP adapter, compatible PC file replacements, Classic REbirth XML translation adapter and offline preparation tool developed in the 1.02 previews.

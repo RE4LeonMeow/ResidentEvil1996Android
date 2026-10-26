@@ -5,11 +5,36 @@ patch. Compatible resource mods and certain translation formats can run in
 this port. A Classic REbirth requirement on a download page does not, by
 itself, establish compatibility.
 
+For a first attempt, start with [Bring a PC mod to Android](PORTING_PC_MODS.md).
+This page gives the extra requirements for XML translations.
+
+## Check the files before trying a translation
+
+Open the extracted mod folder and check this list first:
+
+| Required part | What to check |
+| --- | --- |
+| `manifest.txt` | Contains an `[MOD]` section. |
+| `encoding.xml` | Describes the author's character-to-font mapping; it is not the text file's UTF-8 setting. |
+| `Data/PBFONT0.tim` | The author's matching 256×256 atlas in the supported layout. Dimensions alone do not prove the layout matches. |
+| Translated XML | Uses the supported tables, message indices and commands below; saved as UTF-8. |
+| Optional document PNGs | Match existing GOG pages and fit their original surfaces. |
+
+**No PBFONT0.tim?** Stop here and ask the mod author whether the pack relies on
+Classic REbirth's own font. The helper cannot create a missing font or adapt a
+different layout. Copying the Polish pack's font into a Spanish pack is not a
+fix: their character mappings can differ.
+
+The supplied Polish translation was tested in this port. The supplied Spanish
+V1.1 test archive does not meet the current requirements: its font is missing
+and several XML entries are rejected. The language alone does not determine
+compatibility; check the specific files and version of each pack.
+
 ## Installing a translation
 
 1. Download the translation from its author.
 2. Extract it. If there is a `mod_something.7z`, extract that archive too.
-3. Create one ZIP containing its `manifest.txt`, XML files, `Data`, `text`,
+3. After checking the requirements above, create one ZIP containing its `manifest.txt`, XML files, `Data`, `text`,
    `file` and any `Movie` folder. Keep the files together; do not put a 7z
    archive inside a ZIP. One outer wrapper folder is fine.
 4. Select your USA GOG game folder, then open **Mods → +** and select that ZIP.
@@ -49,9 +74,14 @@ changing the filenames does not convert them.
 
 ## Prepare a translation with the tool
 
-Use the source download's `tools/mods/pack.js`, or the standalone preparation
-tool download. The standalone tool keeps the same folder structure and includes
-the scripts it needs. Install **Node.js LTS, version 20 or newer**, from
+The optional **Mod Helper** checks supported files and assembles a ZIP. It is
+not an automatic mod converter: it does not rewrite incompatible game data,
+repair broken XML or implement Windows plugins. The Android importer performs
+the supported text/font adaptation when installing a prepared ZIP.
+
+Use `tools/mods/pack.js` from the source, or download **RE1-Mod-Helper.zip** from
+the Android repo's Releases. Extract the entire helper ZIP into a new folder;
+do not move just its CMD file out of the folder. Install **Node.js LTS, version 20 or newer**, from
 [nodejs.org](https://nodejs.org/). No npm install, Android SDK or APK rebuild is
 needed. Use an archive app such as 7-Zip to extract downloaded archives.
 
@@ -63,11 +93,11 @@ needed. Use an archive app such as 7-Zip to extract downloaded archives.
 2. Extract any inner `mod_something.7z`, RAR or ZIP too. The tool takes an
    **extracted folder**, not an archive file.
 3. Keep the extracted translation and the author's Movie folder together. For
-   the Polish download, this layout works:
+   an extracted translation download, this layout works:
 
    ```text
-   Polish download/
-     mod_spolszczenie/
+   Translation download/
+     extracted translation/
        manifest.txt
        encoding.xml
        misc.xml
@@ -80,13 +110,18 @@ needed. Use an archive app such as 7-Zip to extract downloaded archives.
        eu5.mp4
    ```
 
-4. Drag **Polish download** onto `Prepare-Rebirth-Mod.cmd`. In the source ZIP,
+4. Drag **Translation download** onto **Mod-Helper.cmd**. In the source ZIP,
    that helper is in `tools/mods`; in the standalone download it is at the top.
-5. Read the result in the console. The tool creates
-   `Polish download-android.zip` beside the input folder, plus
-   `Polish download-android.preparation.txt`.
+   The old `Prepare-Rebirth-Mod.cmd` is a shortcut to the same helper.
+5. Read the result in the console. **If all checks pass**, the helper creates
+   `Translation download-android.zip` beside the input folder, plus
+   `Translation download-android.preparation.txt`. If it stops with an error,
+   follow the [error guide](PORTING_PC_MODS.md#common-errors); no installable
+   ZIP has been produced by that failed run.
 6. Copy the generated ZIP to your phone and install it using **Mods → +**.
-   Keep the translation above other font/UI packs and check its report too.
+   Test it on its own first. Keep the translation above other font/UI packs
+   when combining them and check the importer's report too. Test actual text,
+   inventory, documents and save/load screens before sharing it.
 
 The tool finds one extracted translation and a Movie folder beside it. Multiple
 translations in one input are rejected: prepare each mod separately. Choose
@@ -110,14 +145,39 @@ Keep quotes around paths with spaces. To replace an earlier generated ZIP and
 report, rerun the command with `--overwrite`. The tool otherwise refuses to
 overwrite them. Store outputs outside the input folders.
 
+### Older description.txt encodings
+
+Mod Helper accepts UTF-8 descriptions and detects UTF-16 with a BOM.
+For an older non-UTF-8 description, it assumes **Windows-1252** (common in
+Spanish/Western European packs), records that assumption in the report, and
+writes a UTF-8 copy into the ZIP for the Android importer. Check the accented
+characters in the installed mod's Credits. Its exact original bytes are also
+kept under `notices/original-description.txt`; the source folder is unchanged.
+
+If the description uses a different code page, specify it instead of guessing:
+
+```sh
+node tools/mods/pack.js rebirth "C:/Mods/Polish download" --description-encoding windows-1250
+```
+
+Use `windows-1251` for a known Cyrillic description, or `utf-16le` / `utf-16be`
+for UTF-16 without a BOM. This option changes only the description/credits
+metadata. Translation XML must still be valid UTF-8.
+
+A pack without **Data/PBFONT0.tim** still needs its author's matching font
+atlas before it can use the current adapter. Some PC translations depend on
+a font supplied by Classic REbirth. Converting their description does not
+provide that font or make an incompatible font layout supported.
+
 ### What preparation does
 
 - Finds the manifest and removes unnecessary outer wrapper folders from ZIP
   paths. It can merge the author's Movie folder into the finished ZIP.
 - Checks UTF-8 XML, the supported text commands, fixed save-text cell limits,
   the supported font layout and document PNG dimensions.
-- Copies supported file types without changing the text, image or media bytes.
-  Original author credits and notices are kept.
+- Copies game XML, images and media without changing their bytes. Older
+  description metadata is normalized to UTF-8 in the ZIP only, with the exact
+  original description and author notices retained. Source files are unchanged.
 - Leaves out Windows DLL/ASI/executable/launch-script files, backups and known
   unused desktop UI tables. The preparation report lists these exclusions.
 - Reports missing font characters. Those characters would display as `?` if
@@ -139,7 +199,47 @@ stored without re-encoding their images or media.
 The Node tool is optional. An archive app can do the same packaging manually:
 extract the outer download and inner mod archive, then create one ordinary ZIP
 with `manifest.txt`, `encoding.xml`, the other mod files and `Movie` at its root.
-Import through Mods. You do not need to edit the translated dialogue.
+Import through Mods. The same font/XML requirements apply; making the ZIP
+manually does not bypass them. Older descriptions need a UTF-8 copy for direct
+import. Keep their original credits too. The PC helper can handle that metadata
+step for you. Supported translated dialogue does not need rewriting merely to
+put it in a ZIP.
+
+## Editing a translation yourself
+
+Start from a supported pack you are allowed to edit and keep an unchanged
+working copy. Edit one existing message first; keep the other entries in order.
+The engine uses each entry's position, not its text, to choose the message.
+
+```xml
+<Strings>
+  <Text>New room text.\nSecond line.</Text>
+</Strings>
+```
+
+That example shows the syntax, not a new room definition: replace an existing
+entry in the correct table. Save XML as UTF-8. A literal `\n` creates a line
+break; merely pressing Enter inside the XML text does not do the same thing.
+Use `&amp;` for `&`, `&lt;` for `<`, and `&gt;` for `>` in text. Every character
+also needs a matching glyph in the author's font and `encoding.xml`.
+
+Preserve the commands in an existing message when translating its words:
+
+| Command | Meaning / restriction |
+| --- | --- |
+| `\n` | New line in a message. |
+| `{color N}` | Existing text color command. |
+| `{string N}` | Existing inserted string, such as an item name. |
+| `{clear N}` | Existing message/page clear command. |
+| `{scroll 0}` … `{scroll 1}` | Paired reveal-speed section; do not leave it open. |
+| `{timed N}` | End with a positive delay; put no message text after it. |
+| `{branch A B C}` | Existing choice marker; keep its syntax and position. The port preserves the original GOG prompt actions. |
+
+These examples describe message tables; item/menu tables support a smaller
+set. The helper reports unsupported commands and fixed save-label limits.
+It does not write new room scripts or decide how a changed puzzle should work.
+Do not delete markers or dialogue just to make an error disappear. Compare
+with the author's original and ask for help if the meaning is unclear.
 
 ### Other Classic REbirth mod types
 
@@ -147,7 +247,7 @@ Import through Mods. You do not need to edit the translated dialogue.
 | --- | --- |
 | Compatible Enemy/Players model files or Sound/Voice replacements | ZIP the original game folders and import directly; no translation tool needed |
 | Full official RE1 SHDP 1.1 pack | Import the original full ZIP directly |
-| Supported XML translation and font | Use the preparation tool or manual ZIP method above |
+| Supported XML translation and font | Use Mod Helper or the manual ZIP method above |
 | Windows DLL/ASI/code patches or a different font/script format | Requires an engine feature or a dedicated adapter; repacking alone cannot make it work |
 
 ## What the translation adapter reads

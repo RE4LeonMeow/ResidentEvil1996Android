@@ -6,13 +6,17 @@ mods separate from the original game folder, so you can disable your pack later.
 
 **Mods → ? → Mod-making guide** opens the public Android README, which links to this guide.
 Download the Android source ZIP on your PC to get the authoring tool.
+The standalone **RE1-Mod-Helper.zip** includes the same authoring scripts;
+you can use that smaller download instead of the full source.
 
 This guide is for the Android edition. Find community packs in **#mods** on
 [Discord](https://discord.gg/5PVsXAgvM2), on the Resident Evil 1996 Porting server.
 Use community packs from confirmed modders.
 
-For a quick list of direct imports, packs that need preparation and code mods
-that cannot run as imported ZIPs, see the [README compatibility guide](../README.md#mods-and-making-texture-packs).
+For an existing PC download, start with [Bring a PC mod to Android](PORTING_PC_MODS.md).
+It helps you identify the files and choose the correct steps. The
+[README compatibility guide](../README.md#mods-and-making-texture-packs)
+has a quick overview.
 
 ## Install a pack
 
@@ -32,7 +36,7 @@ directly. Its patch-only and GitHub source-code ZIPs are not the full texture
 pack. See the [pack-specific coverage notes](SHDP_COMPATIBILITY.md) for that
 example; the steps in this guide apply to your own mods too.
 
-## Prepare a Classic REbirth mod
+## Check and package a supported translation
 
 Compatible model/sound replacements and Android texture packs already import as
 described above. For a supported **Classic REbirth XML translation**, extract
@@ -43,24 +47,29 @@ node tools/mods/pack.js rebirth "C:/Mods/Extracted translation" --out "C:/Mods/T
 ```
 
 On Windows, you can instead drag the extracted folder onto
-`tools/mods/Prepare-Rebirth-Mod.cmd` after installing Node.js LTS. The tool
-creates an Android ZIP and a plain-text preparation report, retaining the
-translation files and original author credits. It does not rewrite the mod or
-turn Windows code patches into portable game behaviour.
+`tools/mods/Mod-Helper.cmd` after installing Node.js LTS. **Mod Helper** checks
+the supported files and, if those checks pass, packages a ZIP and a plain-text
+report. It keeps the original input files and credits. It can normalize older
+description encodings in the ZIP, but does not repair game XML, create missing
+fonts or change incompatible resource formats. A ZIP passing its checks still
+needs in-game testing. The old `Prepare-Rebirth-Mod.cmd` name still works.
 
 The [step-by-step preparation guide](CLASSIC_REBIRTH_MODS.md#prepare-a-translation-with-the-tool)
-shows nested archives, separate Movie folders, the Windows helper and a manual
-phone method. The tool needs no APK rebuild, npm packages or GOG installation.
+shows the required files, nested archives, separate Movie folders, common
+errors and a manual phone method. The helper needs no APK rebuild, npm packages
+or GOG installation for this translation packaging command.
 
 ## What you need to make a texture pack
 
 - Your own USA GOG game files.
-- The source code for this Android port, extracted into a folder.
+- The Android source code or **RE1-Mod-Helper.zip**, extracted into a folder.
 - [Node.js](https://nodejs.org/) 20 or newer. Install the LTS version; no npm
   packages are needed. Open a new terminal after installing it.
 - An image editor, such as GIMP, Krita or Paint.NET.
 
-These authoring tools run on your PC. Open Git Bash or PowerShell **inside the Android source folder**. Check Node:
+These authoring tools run on your PC. Open Git Bash or PowerShell **inside the
+extracted Android source or RE1-Mod-Helper folder**. You should see `tools` and
+`docs` there. Check Node:
 
 ```sh
 node --version
@@ -381,6 +390,8 @@ copy the whole GOG folder into your ZIP.
   The Jill example above needs both palette 0 and palette 1 for a full reskin.
 - **An adapted PC pack is missing textures:** check its compatibility report
   and coverage notes; arbitrary layouts may need a separate adapter.
+- **The helper stops at an error:** see the [PC-mod troubleshooting table](PORTING_PC_MODS.md#common-errors).
+  Its checks cannot make unsupported fonts, XML or code patches compatible.
 
 Share your finished ZIP and screenshots in #mods, including a description,
 version and credits. Include only artwork/data you have permission to share;

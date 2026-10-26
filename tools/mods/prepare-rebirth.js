@@ -9,14 +9,14 @@ const fail=message=>{throw Error(message);};
 function inside(parent,file){const relative=path.relative(parent,file);return relative===''||!relative.startsWith('..'+path.sep)&&relative!=='..'&&!path.isAbsolute(relative);}
 function realDestination(file){let parent=path.dirname(file),tail=[path.basename(file)];while(!fs.existsSync(parent)){tail.unshift(path.basename(parent));const next=path.dirname(parent);if(next===parent)fail('The output drive/root does not exist');parent=next;}return path.join(fs.realpathSync(parent),...tail);}
 function prepare(folder,options,helpers){
- for(const key of Object.keys(options))if(!['movies','out','overwrite'].includes(key))fail('Unknown rebirth option --'+key);
+ for(const key of Object.keys(options))if(!['movies','out','overwrite','description-encoding'].includes(key))fail('Unknown rebirth option --'+key);
  if(!fs.existsSync(folder)||!fs.statSync(folder).isDirectory())fail('Select the extracted mod folder, not a ZIP/RAR/7z file. Extract the outer archive and its inner mod archive first.');
  if(fs.lstatSync(folder).isSymbolicLink())fail('Select a real folder, not a symlink');
  folder=fs.realpathSync(folder);
  const files=helpers.scan(folder).map((entry,slot)=>({...entry,slot}));
  let info;try{info=core.manifest(files);}catch(error){fail(error.message+'\nExtract all archives first, then choose the folder containing manifest.txt and encoding.xml.');}
- if(info.format!=='rebirth')fail('This command prepares Classic REbirth XML translations with manifest.txt and encoding.xml. Compatible model/sound resource ZIPs and the full SHDP ZIP can already be imported directly.');
- const selected=new Map(),lower=new Map(),omitted=[],warnings=[];
+ if(info.format!=='rebirth')fail('Mod Helper checks and packages supported Classic REbirth XML translations with manifest.txt and encoding.xml. It does not convert incompatible mods. Compatible model/sound resource ZIPs and the full SHDP ZIP can already be imported directly. See docs/PORTING_PC_MODS.md.');
+ const selected=new Map(),lower=new Map(),generated=new Map(),omitted=[],warnings=[];
  const notice=/^(?:readme|license|licence|copying|authors|credits|notice|copyright)(?:[^/]*\.(?:txt|md)|[^/.]*)$/i;
  const prefix=info.prefix,parents=[''];let at=prefix;
  while(at){parents.push(at);at=at.replace(/[^/]+\/$/,'');}
@@ -49,9 +49,32 @@ function prepare(folder,options,helpers){
   try{return new TextDecoder('utf-8',{fatal:true}).decode(fs.readFileSync(file));}catch{fail(name+' must be UTF-8 text. Convert its text encoding before preparing the pack.');}
  };
  const manifest=read('manifest.txt');if(!/^\s*\[MOD\]\s*$/im.test(manifest||''))fail('manifest.txt needs an [MOD] section');
- if(lookup('description.txt'))read('description.txt');
+ // Description/credits are metadata, not the game's XML text. Older packs
+ // commonly use Windows ANSI or Notepad's UTF-16. Normalize only the ZIP copy
+ // for the released importer's UTF-8 reader, retaining the exact original.
+ if(options['description-encoding']&&!lookup('description.txt'))fail('--description-encoding needs a description.txt in the mod');
+ if(lookup('description.txt')){
+  const file=lookup('description.txt');
+  if(fs.statSync(file).size>rebirth.MAX_XML)fail('description.txt exceeds the supported XML/text size');
+  const original=fs.readFileSync(file);let encoding=options['description-encoding'],text;
+  if(!encoding){
+   if(original[0]===255&&original[1]===254)encoding='utf-16le';
+   else if(original[0]===254&&original[1]===255)encoding='utf-16be';
+   else {try{text=new TextDecoder('utf-8',{fatal:true}).decode(original);}catch{encoding='windows-1252';warnings.push('description.txt is not UTF-8; assuming Windows-1252 for its credits. Check accented characters. If needed, rerun with --description-encoding windows-1250 (Polish), windows-1251 (Cyrillic), or the original encoding.');}}
+  }
+  if(encoding){
+   try{text=new TextDecoder(encoding,{fatal:true}).decode(original);}catch{fail('Cannot read description.txt as '+encoding+'. Use --description-encoding with its original encoding (for example windows-1252 or windows-1250).');}
+   if(text.includes('\0'))fail('description.txt contains NUL characters. Use --description-encoding utf-16le or utf-16be if it is UTF-16 without a BOM.');
+   let backup='notices/original-description.txt',number=2;
+   while(lower.has(backup.toLowerCase()))backup='notices/original-description-'+(number++)+'.txt';
+   const normalized=Buffer.from(text,'utf8');
+   if(normalized.length>rebirth.MAX_XML)fail('description.txt exceeds the supported text size after UTF-8 conversion');
+   add(backup,file);generated.set(lower.get('description.txt'),normalized);
+   warnings.push('Converted description.txt from '+encoding+' to UTF-8 in the ZIP only. Original credits retained byte-for-byte in '+backup+'.');
+  }else if(text.includes('\0'))fail('description.txt contains NUL characters. Use --description-encoding utf-16le or utf-16be if it is UTF-16 without a BOM.');
+ }
  const font=rebirth.encoding(rebirth.xml(read('encoding.xml'))),fontFile=lookup('Data/PBFONT0.tim');
- if(!fontFile)fail('This translation needs Data/PBFONT0.tim. A pack using another font layout needs a separate adapter.');
+ if(!fontFile)fail('This translation does not include Data/PBFONT0.tim. The current Android adapter needs the author\'s matching 256x256 font atlas; some PC packs rely on a font supplied by Classic REbirth. Obtain the matching font from the mod author. Changing the description encoding cannot supply this missing font.');
  if(fs.statSync(fontFile).size>core.MAX_IMAGE_BYTES)fail('PBFONT0.tim is too large');
  const atlas=hd.tim(new Uint8Array(fs.readFileSync(fontFile)),0);
  if(atlas.w!==256||atlas.h!==256)fail('This font layout needs an adapter: PBFONT0.tim must be 256x256 for build 38.');
@@ -90,15 +113,15 @@ function prepare(folder,options,helpers){
  if(!options.overwrite&&(fs.existsSync(destination)||fs.existsSync(reportFile)))fail('Output already exists. Choose another --out filename or add --overwrite to replace the generated ZIP/report.');
  if(selected.size>50000)fail('Too many mod files');
  const name=(/^\s*Name\s*=\s*(.+)$/im.exec(manifest)?.[1]||path.basename(folder)).replace(/[\x00-\x1f\x7f]/g,' ');
- const report=['Classic REbirth preparation report','Mod: '+name,'Files included: '+selected.size,'Supported text entries checked: '+strings,'Document PNGs: '+documents,'Movie replacements: '+movies,'','Notes:',...warnings.map(w=>'- '+w),'','Files left out:',...omitted.map(e=>'- '+e.path+' — '+e.reason),'','Source files, text, images and media were not rewritten. This tool packages supported data; it does not convert Windows DLL/ASI behaviour.','Original author credits and included notices are retained.'];
+ const report=['RE1 Mod Helper - translation preparation report','Mod: '+name,'Files included: '+selected.size,'Supported text entries checked: '+strings,'Document PNGs: '+documents,'Movie replacements: '+movies,'','Notes:',...warnings.map(w=>'- '+w),'','Files left out:',...omitted.map(e=>'- '+e.path+' — '+e.reason),'','Source files were not rewritten. Game XML, images and media are copied unchanged. Description metadata may be normalized to UTF-8 in the ZIP, with the original retained in notices/.','Mod Helper checks and packages supported data. It does not repair incompatible mods or convert Windows DLL/ASI behaviour.','Original author credits and included notices are retained.'];
  fs.mkdirSync(path.dirname(reportFile),{recursive:true});
  const temporaryReport=reportFile+'.'+crypto.randomBytes(6).toString('hex')+'.tmp';
  try{
   fs.writeFileSync(temporaryReport,report.join('\n')+'\n',{encoding:'utf8',flag:'wx'});
-  helpers.zip(folder,[...selected.keys()].sort(),destination,name=>selected.get(name));
+  helpers.zip(folder,[...selected.keys()].sort(),destination,name=>generated.get(name)||selected.get(name));
   fs.renameSync(temporaryReport,reportFile);
  }finally{if(fs.existsSync(temporaryReport))fs.unlinkSync(temporaryReport);}
- console.log('Prepared '+destination+'\nReport: '+reportFile+'\n'+strings+' text entries checked; '+documents+' document image(s); '+movies+' movie(s).\nInstall through Mods > +, above SHDP. Test before publishing.');
+ console.log('Mod Helper packaged '+destination+'\nReport: '+reportFile+'\n'+strings+' text entries checked; '+documents+' document image(s); '+movies+' movie(s).\nInstall through Mods > +. Keep translations above conflicting font/UI packs. Test in game before sharing.');
  return {destination,reportFile,files:selected.size,strings,documents,movies};
 }
 module.exports={prepare};

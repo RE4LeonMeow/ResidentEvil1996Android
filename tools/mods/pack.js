@@ -46,6 +46,7 @@ function scan(folder,prefix=''){
 }
 // ZIP32, stored entries: no dependencies and no recompression/quality changes.
 // Stream each file so a video/sound mod need not fit into one Node Buffer.
+// A resolver may also supply a small generated metadata Buffer.
 function zip(folder,names,destination,resolveSource){
  if(path.extname(destination).toLowerCase()!=='.zip')fail('Output must end in .zip');
  fs.mkdirSync(path.dirname(destination),{recursive:true});
@@ -55,11 +56,16 @@ function zip(folder,names,destination,resolveSource){
  const write=bytes=>{let at=0;while(at<bytes.length){const n=fs.writeSync(fd,bytes,at,bytes.length-at,offset+at);if(!n)fail('Incomplete ZIP write');at+=n;}offset+=bytes.length;};
  try{
   for(const name of names){
-   const source=resolveSource?resolveSource(name):safe(folder,name),size=fs.statSync(source).size,encoded=Buffer.from(name),start=offset;
+   const source=resolveSource?resolveSource(name):safe(folder,name),data=Buffer.isBuffer(source)?source:null,size=data?data.length:fs.statSync(source).size,encoded=Buffer.from(name),start=offset;
    if(size>1024**3||offset+size+encoded.length+128>0xffffffff)fail('Pack exceeds the supported ZIP32 size');
    const head=Buffer.alloc(30);head.writeUInt32LE(0x04034b50);head.writeUInt16LE(20,4);head.writeUInt16LE(2048,6);head.writeUInt16LE(33,12);head.writeUInt32LE(size,18);head.writeUInt32LE(size,22);head.writeUInt16LE(encoded.length,26);write(head);write(encoded);
-   const input=fs.openSync(source,'r'),buffer=Buffer.alloc(262144);let crc=0xffffffff,count=0;
-   try{for(let n;(n=fs.readSync(input,buffer,0,buffer.length,null))>0;){for(let i=0;i<n;i++)crc=table[(crc^buffer[i])&255]^(crc>>>8);write(buffer.subarray(0,n));count+=n;}}finally{fs.closeSync(input);}
+   let crc=0xffffffff,count=0;
+   const append=bytes=>{for(let i=0;i<bytes.length;i++)crc=table[(crc^bytes[i])&255]^(crc>>>8);write(bytes);count+=bytes.length;};
+   if(data)append(data);
+   else {
+    const input=fs.openSync(source,'r'),buffer=Buffer.alloc(262144);
+    try{for(let n;(n=fs.readSync(input,buffer,0,buffer.length,null))>0;)append(buffer.subarray(0,n));}finally{fs.closeSync(input);}
+   }
    if(count!==size)fail('A source file changed while building: '+name);crc=(crc^0xffffffff)>>>0;
    const patch=Buffer.alloc(4);patch.writeUInt32LE(crc);fs.writeSync(fd,patch,0,4,start+14);
    const c=Buffer.alloc(46);c.writeUInt32LE(0x02014b50);c.writeUInt16LE(20,4);c.writeUInt16LE(20,6);c.writeUInt16LE(2048,8);c.writeUInt16LE(33,14);c.writeUInt32LE(crc,16);c.writeUInt32LE(size,20);c.writeUInt32LE(size,24);c.writeUInt16LE(encoded.length,28);c.writeUInt32LE(start,42);central.push(Buffer.concat([c,encoded]));
@@ -72,7 +78,7 @@ function zip(folder,names,destination,resolveSource){
 }
 function main(values){
  const {positional,options}=args(values),[command,dir]=positional;
- if(!dir||!['new','texture','build','rebirth'].includes(command))fail('Usage:\n  node tools/mods/pack.js new FOLDER --name "My pack" --author "Your name"\n  node tools/mods/pack.js texture FOLDER --game "GOG/USA" --source "Stage1/RC1000.pak"\n  node tools/mods/pack.js build FOLDER [--out "my-pack.zip"]\n  node tools/mods/pack.js rebirth EXTRACTED_FOLDER [--movies MOVIE_FOLDER] [--out "mod-android.zip"] [--overwrite]');
+ if(!dir||!['new','texture','build','rebirth'].includes(command))fail('Usage:\n  node tools/mods/pack.js new FOLDER --name "My pack" --author "Your name"\n  node tools/mods/pack.js texture FOLDER --game "GOG/USA" --source "Stage1/RC1000.pak"\n  node tools/mods/pack.js build FOLDER [--out "my-pack.zip"]\n  node tools/mods/pack.js rebirth EXTRACTED_FOLDER [--movies MOVIE_FOLDER] [--out "mod-android.zip"] [--description-encoding windows-1252] [--overwrite]');
  const folder=path.resolve(dir);
  if(command==='rebirth'){if(positional.length!==2)fail('Quote folder paths with spaces; use --movies for a separate Movie folder.');require('./prepare-rebirth.js').prepare(folder,options,{scan,zip,safe});return;}
  if(command==='new'){
