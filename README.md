@@ -2,12 +2,6 @@
 
 **Current version: 1.1**
 
-This update adds Android mod support: texture packs, compatible PC model and
-sound replacements, and experimental Classic REbirth XML translations. There
-is a beginner mod-making guide and an optional **Mod Helper** below.
-Android 9 support is experimental; update Android System WebView to the latest
-compatible version offered by Google Play and try **Test graphics & sound**.
-
 **Browser edition:** https://github.com/RE4LeonMeow/ResidentEvil1996Browser
 
 Hey! This is my unofficial Android port of Resident Evil 1, based on
