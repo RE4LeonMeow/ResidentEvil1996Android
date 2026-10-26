@@ -32,7 +32,7 @@ are included in the APK or this repo.**
 
 ## Mods and making texture packs
 
-Hey! Find community packs in **#mods** on the **Resident Evil 1996 Porting**
+Find community packs in **#mods** on the **Resident Evil 1996 Porting**
 [Discord server](https://discord.gg/5PVsXAgvM2). Use packs from confirmed modders
 and read the installation notes. You can also find mods on **Nexus Mods**,
 **Mod DB** and the original authors' sites. **Mods from these sites can work
