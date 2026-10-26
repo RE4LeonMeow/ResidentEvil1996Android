@@ -213,10 +213,6 @@ filenames, packed audio banks, unsupported codecs or DLL-dependent behaviour
 are not automatically converted. Voice timing can also differ from the
 original room/cutscene timing.
 
-The Brazilian Portuguese AI dub at Nexus Mods `/residentevil1996/mods/112`
-has not yet been verified from its archive; the public listing alone is not
-a compatibility test.
-
 ## Combining translations with other mods
 
 Compatible model-file replacements use their existing game paths. Texture,
