@@ -40,9 +40,11 @@ are included in the APK or this repo.**
 
 Hey! Find community packs in **#mods** on the **Resident Evil 1996 Porting**
 [Discord server](https://discord.gg/5PVsXAgvM2). Use packs from confirmed modders
-and read the installation notes. Original authors also publish PC packs on
-their own sites, Nexus Mods and Mod DB, but a PC download is not automatically
-compatible with this port.
+and read the installation notes. You can also find mods on **Nexus Mods**,
+**Mod DB** and the original authors' sites. **Mods from these sites can work
+with this port**, including compatible model swaps, character reskins, texture
+replacements and sounds. Compatibility depends on the pack's file formats,
+game version and required engine features, wherever you download it.
 
 Select your own USA GOG game folder, open **Mods**, tap **+** and choose a ZIP.
 The **?** button has the same quick compatibility guide. Mods are Android-only.
@@ -56,7 +58,7 @@ To paint your own textures instead, use [Make your first texture mod](docs/ANDRO
 | Pack | What to do |
 | --- | --- |
 | A mod ZIP made for this Android port | Import it directly. |
-| Compatible PC character/model or sound replacements | Import the ZIP with its original game folders and filenames, such as `Enemy`, `Players`, `Sound` or `Voice`. The resources must match the USA GOG game and supported formats. |
+| Compatible PC model swaps, character reskins, native texture-file replacements and sounds | Import the ZIP with its original game folders and filenames, such as `Enemy`, `Players`, `Data`, `Stage1`, `Sound` or `Voice`. The resources must match the USA GOG game and supported formats. Loose PNGs or arbitrary `hires` packs need texture mappings; see the [texture guide](docs/PORTING_PC_MODS.md#4-texture-packs). |
 | Full official **RE_SHDP_1.1.zip** | Import directly. Use the full release pack, not its small patch or GitHub source-code ZIP. Compatible textures and MP4 movies are mapped by the importer. |
 
 Compatible PC replacement ZIPs and the supported SHDP release do not need you
