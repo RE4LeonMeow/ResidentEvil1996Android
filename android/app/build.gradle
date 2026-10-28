@@ -6,8 +6,8 @@ android {
         applicationId 'org.re1.launcher'
         minSdk 28
         targetSdk 35
-        versionCode 42
-        versionName '1.1'
+        versionCode 47
+        versionName '1.11'
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     androidResources { noCompress += ['wasm'] }

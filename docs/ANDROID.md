@@ -1,9 +1,19 @@
 # Android launcher (experimental)
 
-Build 37: minimum Android API 28 (Android 9), with an
+Version 1.11, build 47: minimum Android API 28 (Android 9), with an
 updated compatible Android System WebView provider and WebGL 1 or 2.
-Android 9 device testing is pending; the compatibility APK is prepared for a
-Galaxy S8+ tester. The engine, rendering settings and game data are unchanged.
+Android 9 compatibility depends on the device and its WebView provider.
+
+For the cumulative source update and APK installation steps, see
+[Update to 1.11](UPDATE_1_11.md). The [1.11 release notes](RELEASE_1_11.md)
+cover improved mod support, the enemy-freeze cheat and display fixes.
+
+Folding, unfolding and resizing retain the same Activity and live WebView.
+The launcher handles screen-size, smallest-screen-size, screen-layout and
+density changes, refreshes the viewport and releases held inputs. Control
+preferences and the current pause/menu state are preserved. Automated tests
+cover both GLES modes and in-memory session retention; physical foldable
+testing is still needed. A process killed by Android cannot retain game RAM.
 
 This build runs the shared C++ engine as **wasm32 inside Android WebView**.
 It is not a native ARM64 rewrite. WebView runs on the phone's supported CPU
@@ -123,6 +133,11 @@ debug signing key; keep the app installed to preserve saves and settings.
   Infinite health maintains full HP; scripted instant deaths can still happen.
   Use a separate save slot. Cheat toggles and agreement are not stored in saves;
   changed health, ammo or inventory are saved normally.
+- Version 1.11 adds **Ignore player (freeze enemies)** in Cheats.
+  It pauses autonomous hostile actors while leaving their model setup, incoming
+  hits, deaths and SCD-controlled actors active. NPCs, door-blocking webs and
+  the terminal's animated arms keep updating. Toggle it off to resume enemy
+  behaviour, or use Turn off all cheats. It resets on return to the launcher.
 - Browser remembered files are copied into browser-owned Blobs so moving the
   original selected folder does not invalidate the local remembered library.
 

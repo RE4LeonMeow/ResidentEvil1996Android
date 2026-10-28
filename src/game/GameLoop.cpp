@@ -22,6 +22,8 @@
 #include <cstdarg>
 #include "../DebugPrint.h"
 #include "../system/AssetPath.h"
+#include "../platform/ModCampaign.h"
+#include "../platform/ScreenHud.h"
 
 // Forward declarations for functions only used within game_loop
 extern void FUN_00473f10(int* baseAddr, unsigned int bitIndex);
@@ -381,7 +383,7 @@ LAB_00480e89:
             }
             else {
                 // ----- Countdown timer active (self-destruct sequence) -----
-                if (g_CountdownTimer != 180) {
+                if (g_CountdownTimer != int(PortCampaignCountdownSeconds())) {
                     // 0x00480cb4-0x00480d7c: Display countdown timer.
                     // The two builds place the same 8-glyph "%2d:%02d:%d%d"
                     // string at different x, because the Japanese FONT.TIM
@@ -394,12 +396,12 @@ LAB_00480e89:
                     // version: PrintText8x14 has no +2 row bias, so '0'..'9'
                     // land on the same cells in both sheets.
                     sprintf(PRINT_TEXT_BUFFER, "%2d:%02d:%d%d",
-                            2 - g_CountdownTimer / 60,
+                            int(PortCampaignCountdownSeconds()/60) - 1 - g_CountdownTimer / 60,
                             59 - (unsigned int)g_CountdownTimer % 60,
                             DAT_004d2294 / -3 + 9,
                             (DAT_004d2294 + 1) % 10);
                     PrintText8x14((short)((GetAssetVersion() != 0) ? 0x68 : 0x84),
-                                 0x20, (0x77 < g_CountdownTimer) + 1, 0);
+                                 PortCountdownY(0x20), (int(PortCampaignCountdownSeconds())-61 < g_CountdownTimer) + 1, 0);
                     goto LAB_00480d7c;
                 }
                 // 0x00480cbd-0x00480cee: Timer expired - trigger explosion FMV
@@ -418,7 +420,7 @@ LAB_00480e89:
                 case 0:
                     // 0x00480ff4-0x004810c5: Death trigger - check room-specific behavior
                     if (((g_main_state_flags2 & (MSF2_DEATH_VARIANT | MSF2_ATTRACT_DEMO)) == 0) &&
-                        (g_CountdownTimer != 180))
+                        (g_CountdownTimer != int(PortCampaignCountdownSeconds())))
                     {
                         if ((g_stageId == STAGE_MANSION_2F) && (g_roomId == ROOM_ATTIC)) {
                             // Yawn 1 death: immediate death fade

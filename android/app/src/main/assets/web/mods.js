@@ -8,12 +8,21 @@
   let detailsRequest=null;
   const tasks=new Map(),nativeTasks=new Map(),decoded=new Map(),pending=new Set(),failed=new Set();
   let decodedBytes=0,activeTextures=new Map(),activeFiles=new Map();
-  let localeBytes=null;
+  let localeBytes=null,campaignBytes=null;
   const hintedRooms=new Set();
   const budget=64*1024*1024;
   const api=window.RE1Mods={
     active:false,outputHD:false,hits:0,misses:0,iconUploads:0,effectUploads:0,busy:()=>busy,
     localization:()=>localeBytes,
+    campaign:()=>campaignBytes,
+    saveDirectory(){
+      const mods=library.filter(mod=>mod.enabled&&mod.source===source&&!mod.error&&mod.campaignSize);
+      if(mods.length>1)throw Error('Enable only one campaign mod before managing its saves.');
+      const mod=mods[0];
+      if(mod&&!/^[a-z0-9][a-z0-9._-]{0,79}$/.test(mod.slug))throw Error('Invalid campaign save folder. Reinstall the campaign.');
+      return mod?'/persist/CAMPAIGNS/'+mod.slug+'/SAVE':'/persist/SAVE';
+    },
+    async savesReady(){await starting;await refreshSource();return api.saveDirectory();},
     allowed:()=>window.re1ModsAllowed?.()!==false,
     nativeResult(id,result){
       const task=nativeTasks.get(id);if(!task)return;nativeTasks.delete(id);
@@ -67,6 +76,9 @@
       const file=activeFiles.get(path.toLowerCase());if(!file)return null;
       return chunk(native().readModChunk(file.id,file.slot,offset,length),length);
     },
+    fileOverridden(path){
+      return typeof path==='string'&&activeFiles.has(path.replace(/\\/g,'/').toLowerCase());
+    },
     movie(path){
       const key=path.replace(/\\/g,'/').replace(/^\/game\/usa\//i,'').toLowerCase(),file=activeFiles.get(key);
       return file&&/^movie\/[^/]+\.mp4$/.test(key)?'/mod-video/'+file.id+'/'+file.slot+'.mp4':null;
@@ -85,9 +97,18 @@
       // larger HD framebuffer. SHDP and the existing HD packs keep theirs.
       api.outputHD=[...activeTextures.values()].some(record=>!record.nativeSize);
       localeBytes=null;
+      campaignBytes=null;
+      const campaigns=library.filter(mod=>mod.enabled&&mod.source===source&&!mod.error&&mod.campaignSize);
+      if(campaigns.length>1)throw Error('Enable only one campaign mod at a time. Disable the other campaign in Mods.');
+      if(campaigns.length){
+        campaignBytes=new Uint8Array(await workerCall('campaign',{pack:campaigns[0].id}));
+        window.RE1Diag?.log('Campaign: '+campaigns[0].name);
+      }
       const translation=library.find(mod=>mod.enabled&&mod.source===source&&!mod.error&&mod.localeSize);
       if(translation){
-        if(activeTextures.get(translation.localeFontKey)?.id!==translation.id)throw Error('Move '+translation.name+' above other font/UI packs in Mods, so its custom font matches its translated text.');
+        if(translation.localeOriginalFont){
+          if(activeTextures.has(translation.localeOriginalFontKey))throw Error('Disable the other font/UI pack while using '+translation.name+', which uses the original game font.');
+        }else if(activeTextures.get(translation.localeFontKey)?.id!==translation.id)throw Error('Move '+translation.name+' above other font/UI packs in Mods, so its custom font matches its translated text.');
         localeBytes=new Uint8Array(await workerCall('locale',{pack:translation.id}));
         window.RE1Diag?.log('Translation: '+translation.name+' | '+translation.localeCount+' strings');
       }

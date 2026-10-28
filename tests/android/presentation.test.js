@@ -53,3 +53,14 @@ test('interaction crop retains bottom text, Yes/No choices and blink cursor; doo
  const door=imageRect(v,true,p.center(9,v.visible));assert.equal(door.y,-180);
  assert.equal(p.bottom(10,240),0);
 });
+test('countdown stays inside every cropped viewport and keeps its original placement in full frames',()=>{
+ const {hudY}=require('../../android/app/src/main/assets/web/presentation.js');
+ for(const size of [[1920,1080],[2400,1080],[800,600],[600,1000]]){
+  const view=viewport(...size,true);
+  for(let offset=0;offset<=240-view.visible;offset++){
+   const y=hudY(32,view,true,offset),rect=imageRect(view,true,offset),scale=rect.height/240;
+   assert(y*scale+rect.y>=0);assert((y+14)*scale+rect.y<=view.height);
+  }
+  assert.equal(hudY(32,view,false,60),32);
+ }
+});

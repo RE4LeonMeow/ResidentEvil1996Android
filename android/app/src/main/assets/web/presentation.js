@@ -42,12 +42,13 @@
     return {x:(view.width-320*scale)/2,y:crop?-clamp(pan,0,240-view.visible)*scale:(view.height-240*scale)/2,width:320*scale,height:240*scale};
   }
   function menuExtra(view){return Math.max(0,240*view.width/view.height-320);}
-  const api={Pan,viewport,imageRect,menuExtra};
+  function hudY(original,view,cropped,offset){return cropped?clamp(offset,0,240-view.visible)+8:original;}
+  const api={Pan,viewport,imageRect,menuExtra,hudY};
   if(typeof module!=='undefined')module.exports=api;
   if(!root.document)return;
   const frame=document.getElementById('game-frame'),canvas=document.getElementById('canvas');
   let wide=localStorage.getItem('re1.aspect')==='16:9',mode=0,playerY=120,camera=0;
-  let view,previousTime=performance.now(),previousStyle='',firstFrame=true;const pan=new Pan();
+  let view=viewport(4,3,wide),previousTime=performance.now(),previousStyle='',firstFrame=true;const pan=new Pan();
   function draw(seconds=0){
     const crop=wide&&mode>=1&&mode<=3;
     const offset=!crop?0:mode===1?pan.update(playerY,camera,seconds,view.visible):
@@ -61,6 +62,9 @@
     canvas.style.width=rect.width+'px';canvas.style.height=rect.height+'px';
   }
   function resize(){
+    // A display transition can briefly expose a zero-sized viewport. Retain
+    // the last usable framing until the replacement window has dimensions.
+    if(innerWidth<=0||innerHeight<=0)return;
     view=viewport(innerWidth,innerHeight,wide);
     frame.style.left=view.x+'px';frame.style.top=view.y+'px';
     frame.style.width=view.width+'px';frame.style.height=view.height+'px';draw();
@@ -72,6 +76,17 @@
     get croppedRows(){return wide?240-view.visible:0;},
     get inventoryExtra(){return wide?menuExtra(view):0;},
     promptOffset(y,key){return wide?Math.max(0,240-view.visible-pan.freeze(y,key,view.visible)):0;},
+    countdownY(original,nextMode,nextY,nextCamera){
+      const crop=wide&&nextMode>=1&&nextMode<=3;
+      if(!crop)return original;
+      // Predict the same crop used at presentation without advancing its pan
+      // twice on frames which also draw the countdown.
+      const next=new Pan();next.camera=pan.camera;next.position=pan.position;
+      const seconds=(performance.now()-previousTime)/1000;
+      const offset=nextMode===1?next.update(nextY,nextCamera,seconds,view.visible):
+        nextMode===3?next.freeze(nextY,nextCamera,view.visible):next.center(nextCamera,view.visible);
+      return Math.round(hudY(original,view,true,offset));
+    },
     get mode(){return mode;},
     frame(nextMode,nextY,nextCamera){
       if(firstFrame){previousStyle='';firstFrame=false;}

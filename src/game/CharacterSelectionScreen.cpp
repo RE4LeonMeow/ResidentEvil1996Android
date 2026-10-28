@@ -8,6 +8,7 @@
 #include "SFXIds.h"
 #include <cstdio>
 #include "../system/AssetPath.h"
+#include "../platform/ModCampaign.h"
 
 // ============================================================================
 // Forward declarations for external functions
@@ -302,6 +303,11 @@ static void CharSelectDrawPortraits(void)
 // ============================================================================
 void characterSelectionScreen(void)
 {
+    // Port-owned campaign override; normal character selection is unchanged.
+    if(PortCampaignNewGame()){
+        Task_chain((void*)game_start);
+        return;
+    }
     OutputDebugStringA("[CharSelection] Entered character selection screen\n");
 
     g_playingGameFlag = 1;

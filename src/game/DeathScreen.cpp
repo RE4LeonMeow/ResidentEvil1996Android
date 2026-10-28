@@ -1,3 +1,4 @@
+#include "../platform/ModCampaign.h"
 // DeathScreen.cpp - Player death sequence / game-over screen
 //
 // Functions ported from ResidentEvil.exe:
@@ -199,7 +200,7 @@ void TimeoutDeathFadeOut(void)
     g_menu_choice_id   = 0;
     g_openMenuFlag     = 0;
 
-    if (g_CountdownTimer == 0xB4) {
+    if (g_CountdownTimer == int(PortCampaignCountdownSeconds())) {
         cmd_bgm_stop_all();
         play_sound_and_voice_effect(2, 0);
         Task_sleep(1);

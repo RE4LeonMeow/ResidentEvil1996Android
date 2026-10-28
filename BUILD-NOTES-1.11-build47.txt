@@ -1,0 +1,53 @@
+Resident Evil Android 1.11 - private test build 47
+Source commit: 00a023cbb481b5b66e595e3dee2ab0b2ba8e9bc5
+
+FOLDABLE FIX
+The Activity now handles smallest-screen-size, screen-layout and density
+changes as well as ordinary size/orientation changes. Folding/unfolding keeps
+the live WebView and game memory. Controls and framing refresh for the new
+display; held buttons are released and pause/menu state is retained.
+The supplied report identified 1.00 build 29 and did not capture a fold event.
+The same missing configuration handling was present in the prior 1.11 build.
+Device confirmation is still needed; this is not a physical Fold test.
+
+ALSO INCLUDED SINCE PUBLIC 1.1
+- Improved mod support for compatible prepared packs.
+- Separate campaign saves, campaign startup, music/sound tables and timer.
+- Elevator and underground/sewer background row-layout fixes.
+- Countdown remains visible in 16:9.
+- Ignore player (freeze enemies), an optional session-only cheat.
+
+INSTALL
+Install resident-evil-android-1.11-build47.apk over the existing app.
+Version name is 1.11; version code is 47. The signing certificate is unchanged:
+SHA-256 db489f0fb80c6fcca3778b9798b04f2789e43d3423dc39ffd87dd3f8f758c5c7
+Do not uninstall or clear data. Export a save backup before updating.
+Keep existing compatible packs installed unless their instructions say otherwise.
+Find mods in #mods on the Discord server and install through Mods -> +.
+Follow each pack's requirements and compatibility report.
+
+VERIFIED FOR BUILD 47
+- Java compilation, APK alignment/signature and version metadata.
+- Compiled manifest handles size/layout/density changes (mask 0x1ff0).
+- Every APK launcher asset matches the tested source.
+- Engine and HD-resize worker are byte-identical to tested build 46.
+- 83 Node tests and the platform-boundary check pass.
+- Actual WASM/GL browser tests preserve engine/context/unsaved memory and
+  settings across cover/inner/window-sized resizes in GLES 2 and GLES 3.
+- Resizing releases held touch/controller input and respects paused menus.
+- Existing graphics/audio, storage, save recovery and shutdown tests pass.
+- Source ZIP CRCs and cumulative changed-file coverage are checked.
+Physical folding/unfolding and a complete campaign playthrough remain for
+device testing. Android process termination cannot preserve unsaved game RAM.
+
+SOURCE UPDATE
+Use HOW-TO-UPDATE.md. The update ZIP is cumulative from public 1.1 source
+455224d and applies over private builds 43-46 too. README.md is excluded to
+preserve your edits. No source deletion is needed. The full source ZIP is
+also supplied with dependency source archives and prebuilt web modules;
+historical APK downloads are omitted because the current APK is separate.
+Original game files, game installers, mod payloads and signing keys are not
+in these source archives. All prepared downloads are in the PRIVATE RE1 repo.
+
+RELEASE DESCRIPTION
+Use RELEASE-NOTES-1.11.md when you decide to publish version 1.11.

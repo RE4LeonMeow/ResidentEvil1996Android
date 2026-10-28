@@ -5,6 +5,7 @@
 #include "../marni/MarniSound.h"
 #include "Entities.h"
 #include "SoundTables.h"
+#include "../platform/ModCampaign.h"
 #include "dc/ArrangeStages.h"     // room_file_stage(), STAGE_ARRANGE_FIRST
 #include "dc/ArrangeSoundRows.h"  // dc_arrange_snd_slots()
 #include "../DebugPrint.h"
@@ -635,7 +636,7 @@ static unsigned char bgm_group_for(unsigned char roomId, unsigned char bgmState)
     if (g_bgmDataTable == NULL || idx >= sizeof(g_BgmRoomData)) {
         return 0xFF;
     }
-    return g_bgmDataTable[idx];
+    return PortCampaignBgmGroup(idx,g_bgmDataTable[idx]);
 }
 
 // ============================================================================
@@ -724,7 +725,7 @@ static void bgm_load_and_start(unsigned char bgmState)
 
         if (group == 0xFF) continue;
 
-        const char* filename = g_BgmNameTable[group][idx];
+        const char* filename = PortCampaignBgmName(group,idx,g_BgmNameTable[group][idx]);
         if (filename == NULL) continue;
 
         char path[260];
@@ -740,7 +741,7 @@ static void bgm_load_and_start(unsigned char bgmState)
             continue;
         }
 
-        ch->slot = (signed char)g_BgmLoopTable[group][idx];
+        ch->slot = (signed char)PortCampaignBgmLoop(group,idx,g_BgmLoopTable[group][idx]);
         pan_set(bank, 0);
 
         // 0x0047f4df: three tracks load muted and are faded up later by the SCD
@@ -1456,7 +1457,7 @@ void Room_LoadEnemySoundBanks(void) {
     do {
         // Look up per-room sound name table
         const char** soundTable = roomIdxValid ? g_RoomSoundNameTable[roomIdx] : NULL;
-        emsnd_load_slot(iVar6 / 4, soundTable ? soundTable[iVar6 / 4] : NULL);
+        emsnd_load_slot(iVar6 / 4,PortCampaignRoomSound(roomIdx,iVar6/4,soundTable?soundTable[iVar6/4]:NULL));
 
         iVar6 += 4;
         piVar7 += 2;

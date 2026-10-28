@@ -103,6 +103,10 @@ function main(values){
  }
  const entries=scan(folder).map((entry,slot)=>({...entry,slot}));core.manifest(entries);const plan=core.plan(json,entries);
  const selected=new Set(['mod.json']);for(const record of [...plan.textures,...plan.overrides])selected.add(record.file.path);
+ if(plan.runtime){
+  core.campaign(new Uint8Array(fs.readFileSync(safe(folder,plan.runtime.campaign.path))));
+  selected.add(plan.runtime.campaign.path);if(plan.runtime.locale)selected.add(plan.runtime.locale.path);
+ }
  for(const definition of json.textures||[]){
   if(!Array.isArray(definition.originalSize))continue;
   const bytes=new Uint8Array(fs.readFileSync(safe(folder,definition.file))),size=core.imageSize(bytes);core.dimensions(...definition.originalSize,size.w,size.h);

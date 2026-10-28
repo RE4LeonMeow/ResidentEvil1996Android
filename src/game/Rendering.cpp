@@ -9,6 +9,9 @@
 #include "dc/Items.h"    // lockpick item id (is_lockpick_item)
 #include "SpriteRenderer.h"
 #include "TmdRenderer.h"
+#include "BackgroundImage.h"
+#include "../platform/ModCampaign.h"
+#include <cstring>
 #include <cstdlib>
 #include <cstdio>
 #include <time.h>
@@ -48,6 +51,8 @@ static PendingSprite g_pendingSprites[MAX_PENDING_SPRITES];
 static int g_pendingSpriteCount = 0;
 
 MarniHandle g_displayImageSRV = MARNI_NULL_HANDLE;
+// Reset by every display_image call, including title, inventory and videos.
+static float s_backgroundU0=0,s_backgroundV0=0,s_backgroundU1=1,s_backgroundV1=1;
 
 // ============================================================================
 // AddTintSprite (0x0046e0a0)
@@ -616,10 +621,11 @@ void OT_InsertPrimitive(void* prim, unsigned int depth)
     g_pendingSprites[0].y = 0;
     g_pendingSprites[0].w = (float)lw * scaleX;
     g_pendingSprites[0].h = (float)lh * scaleY;
-    g_pendingSprites[0].u0 = du;
-    g_pendingSprites[0].v0 = dv;
-    g_pendingSprites[0].u1 = 1.0f + du;
-    g_pendingSprites[0].v1 = 1.0f + dv;
+    const float spanU=s_backgroundU1-s_backgroundU0,spanV=s_backgroundV1-s_backgroundV0;
+    g_pendingSprites[0].u0 = s_backgroundU0+du*spanU;
+    g_pendingSprites[0].v0 = s_backgroundV0+dv*spanV;
+    g_pendingSprites[0].u1 = s_backgroundU1+du*spanU;
+    g_pendingSprites[0].v1 = s_backgroundV1+dv*spanV;
     unsigned int r = (unsigned int)((g_color_r < 0.0f ? 0.0f : g_color_r > 1.0f ? 1.0f : g_color_r) * 255.0f);
     unsigned int g = (unsigned int)((g_color_g < 0.0f ? 0.0f : g_color_g > 1.0f ? 1.0f : g_color_g) * 255.0f);
     unsigned int b = (unsigned int)((g_color_b < 0.0f ? 0.0f : g_color_b > 1.0f ? 1.0f : g_color_b) * 255.0f);
@@ -1007,6 +1013,7 @@ int SubmitEffectSprite_Ex(TextureDesc* texture, unsigned short fade, int slot,
 // ============================================================================
 void display_image(int slot, void* buffer, int width, int height)
 {
+    s_backgroundU0=s_backgroundV0=0;s_backgroundU1=s_backgroundV1=1;
     g_DisplayImageWidth = width;
     g_DisplayImageHeight = height;
 
@@ -1043,6 +1050,32 @@ void display_image(int slot, void* buffer, int width, int height)
 
     MarniCreateTexture(width, height, 32, rgba, &g_displayImageSRV);
     free(rgba);
+}
+
+void display_room_background(int slot,void* tim,int width,int height,bool replacement)
+{
+    auto* bytes=static_cast<unsigned char*>(tim);
+    // Prepared campaign replacement backgrounds can be 320x240 while an SCD
+    // selects the 316x236 display window. Reading that storage with 316-pixel
+    // rows shears every successive row. Upload using the validated TIM stride,
+    // then crop the display window in UVs. Keeping the full image also retains
+    // its existing texture-pack key, so installed packs need no migration.
+    // Do not infer this from the campaign or TIM header alone: retail GOG
+    // underground backgrounds also declare 320x240 but use legacy 316-pixel
+    // rows in bordered rooms. Those must retain the original display stride.
+    unsigned magic=0,mode=0;unsigned short sourceW=0,sourceH=0;
+    if(replacement&&PortCampaignActive()){
+        std::memcpy(&magic,bytes,4);std::memcpy(&mode,bytes+4,4);
+        std::memcpy(&sourceW,bytes+16,2);std::memcpy(&sourceH,bytes+18,2);
+        if(magic==16&&mode==2&&sourceW==320&&sourceH==240&&width==316&&height==236){
+            display_image(slot,bytes+20,sourceW,sourceH);
+            g_DisplayImageWidth=width;g_DisplayImageHeight=height;
+            s_backgroundU0=2.0f/sourceW;s_backgroundV0=2.0f/sourceH;
+            s_backgroundU1=1-s_backgroundU0;s_backgroundV1=1-s_backgroundV0;
+            return;
+        }
+    }
+    display_image(slot,bytes+20,width,height);
 }
 
 // ============================================================================

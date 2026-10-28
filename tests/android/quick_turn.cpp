@@ -49,6 +49,23 @@ extern "C" void re1_web_set_smooth(int);
 extern "C" unsigned re1_web_interpolation_scene();
 extern "C" int re1_web_interpolation_wait_ms();
 #include "game/PortCheats.h"
+
+// New campaign/localization/input exports share this service translation unit.
+// Supply their storage only; this test invokes no archive or localization data.
+#include <cstring>
+decltype(global_messages) global_messages={};
+decltype(g_ItemDescriptions) g_ItemDescriptions={};
+decltype(g_ItemNamePointers) g_ItemNamePointers={};
+decltype(g_UnknownItemNamePointers) g_UnknownItemNamePointers={};
+decltype(g_controllerConfig) g_controllerConfig=0;
+decltype(g_JoyRemapTbl) g_JoyRemapTbl={};
+decltype(g_joyRemapBackupKey) g_joyRemapBackupKey={};
+decltype(g_joyRemapBackupJoy) g_joyRemapBackupJoy={};
+DWORD g_PlayerPadHeld=0,g_PlayerPadPressed=0,g_PlayerPadHeldPrev=0,g_RawPadHeld=0,g_PadBtnWord=0,g_button_pressed_id=0;
+WORD g_RawPadState=0,g_padEdgeDetectedWord=0,g_PlayerDpadHeldPrev=0;
+int g_DisplayImageWidth=320,g_DisplayImageHeight=240,g_bgCacheMode=1;
+void InstallPadDefaultBindings(){}
+
 static void unchanged(){short angle=g_playerEntity.directionAngle;assert(re1_web_quick_turn()==0);assert(g_playerEntity.directionAngle==angle);}
 int main(){
  g_TasksTable[0].state=1;g_TasksEIP[0]=(void*)game_start;
@@ -172,7 +189,7 @@ int main(){
  g_main_state_flags=0;g_menu_choice_id=0;g_message_flags=0xffff;
  g_playerEntity.health=50;g_playerEntity.maxHealth=140;
  g_playerEntity.animationId=1;g_playerEntity.animFrameId=0;
- assert(re1_web_cheat(2,1)==0);assert(g_playerEntity.health==50);
+ assert(re1_web_cheat(2,1)==0);assert(re1_web_cheat(9,1)==0);assert(g_playerEntity.health==50);
  assert(re1_web_cheat(1,0)==1);
  g_bWindowFocused=FALSE; // settings pauses gameplay, but actions can be queued
  g_ItemSlotsPointer=g_ItemsSlots;
@@ -219,5 +236,26 @@ int main(){
  g_main_state_flags=MSF_ROOM_TRANSITION;assert(re1_web_interpolation_scene()==0);
  g_main_state_flags=0;g_bWindowFocused=FALSE;assert(re1_web_interpolation_scene()==0);
  g_bWindowFocused=TRUE;re1_web_set_smooth(0);assert(re1_web_interpolation_scene()==0);
- puts("PASS: wasm quick turn, presentation, cheats, safe queued actions and interpolation timing/scene guards");
+
+ // Ignore player is reversible session state and never edits actor data.
+ g_playerEntity.health=100;g_playerEntity.animationId=1;g_playerEntity.animFrameId=0;
+ g_main_state_flags=0;g_message_flags=0x141;g_TasksTable[1].state=0;
+ g_playerEntity.isBeingAttackedFlag=0;re1_web_cheat(8,0);
+ Entity enemy={};enemy.status_flags=1;enemy.id=0;enemy.state=1;enemy.health=100;
+ assert(!PortCheatsFreezeEnemy(&enemy,true));assert(re1_web_cheat(9,1)==1);
+ assert((re1_web_cheat(0,0)&4)!=0);Entity original=enemy;
+ assert(PortCheatsFreezeEnemy(&enemy,true));assert(!PortCheatsFreezeEnemy(&enemy,false));
+ assert(!PortCheatsFreezeEnemy(nullptr,true));assert(memcmp(&enemy,&original,sizeof(enemy))==0);
+ for(unsigned state:{0u,8u}){enemy.state=state;assert(!PortCheatsFreezeEnemy(&enemy,true));}enemy.state=1;
+ for(unsigned flag:{0x40u,0x80u}){enemy.behavior_flags=flag;assert(!PortCheatsFreezeEnemy(&enemy,true));}enemy.behavior_flags=0;
+ enemy.hit_state=0x80;assert(!PortCheatsFreezeEnemy(&enemy,true));enemy.hit_state=0;
+ enemy.health=0;assert(!PortCheatsFreezeEnemy(&enemy,true));enemy.health=100;
+ g_main_state_flags=MSF_CAMERA_LOCK;assert(!PortCheatsFreezeEnemy(&enemy,true));g_main_state_flags=0;
+ g_message_flags=0xfeff;assert(!PortCheatsFreezeEnemy(&enemy,true));g_message_flags=0x141;
+ g_playerEntity.isBeingAttackedFlag=1;assert(!PortCheatsFreezeEnemy(&enemy,true));g_playerEntity.isBeingAttackedFlag=0;
+ assert(re1_web_cheat(8,0)==1);assert(!PortCheatsFreezeEnemy(&enemy,true));
+ assert(re1_web_cheat(9,1)==1);g_main_state_flags=MSF_CAMERA_LOCK;
+ assert(re1_web_cheat(9,0)==1);assert((re1_web_cheat(0,0)&4)==0);
+ g_main_state_flags=0;
+ puts("PASS: quick turn, presentation, cheats, enemy-freeze guards, queued actions and interpolation");
 }

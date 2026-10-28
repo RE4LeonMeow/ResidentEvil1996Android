@@ -7,11 +7,11 @@
   const message=text=>{el('cheats-status').textContent=text;};
   function refresh(){
     const state=call(0), usable=!!(state&256);
-    for(const [id,bit] of [['cheat-health',1],['cheat-ammo',2]]){
+    for(const [id,bit] of [['cheat-health',1],['cheat-ammo',2],['cheat-ignore-player',4]]){
       el(id).checked=!!(state&bit);el(id).disabled=!usable&&!(state&bit);
     }
     for(const id of ['cheat-heal','cheat-refill','cheat-save','cheat-itembox'])el(id).disabled=!usable;
-    el('cheat-disable').disabled=!(state&3);
+    el('cheat-disable').disabled=!(state&7);
   }
   function tab(cheats){
     el('controls-panel').hidden=cheats;el('cheats-panel').hidden=!cheats;
@@ -41,6 +41,7 @@
   }
   el('cheat-health').onchange=()=>command(2,el('cheat-health').checked?1:0);
   el('cheat-ammo').onchange=()=>command(3,el('cheat-ammo').checked?1:0);
+  el('cheat-ignore-player').onchange=()=>command(9,el('cheat-ignore-player').checked?1:0);
   el('cheat-heal').onclick=()=>command(4);
   el('cheat-refill').onclick=()=>command(5);
   for(const [id,action] of [['cheat-save',6],['cheat-itembox',7]])el(id).onclick=()=>{

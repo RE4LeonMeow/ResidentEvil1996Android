@@ -56,14 +56,16 @@
       gameBindings='Game action bindings: '+['ACTION','RUN','AIM','ITEMS','PAUSE'].map((name,index)=>name+'=0x'+binding(index).toString(16)).join(' ')+
         ' | Preset: '+binding(5)+'\n';
     }catch(_){}
+    let scene='';const state=globalThis.Module?._re1_web_scene_state;
+    if(typeof state==='function')try{scene='Scene: '+(state(0)+1)+'/'+state(1).toString(16).padStart(2,'0')+'/'+state(2)+' | Background: '+state(3)+'×'+state(4)+' | Border: '+!!state(5)+' | Cache: '+state(6)+'\n';}catch(_){}
     const aimReport=(label,value)=>label+': '+(!value?'not captured':
       (1000/value.gap).toFixed(1)+' FPS | Frame gap: '+value.gap.toFixed(1)+' ms mean / '+value.peak.toFixed(1)+' ms peak | Tick elapsed: '+value.tick.toFixed(1)+' ms mean | Room: '+(1+(value.camera>>>16))+'/'+((value.camera>>>8)&255).toString(16).padStart(2,'0')+'/'+(value.camera&255)+' | Living enemies: '+value.enemies+' | At: '+((value.time-start)/1000).toFixed(1)+'s')+'\n';
-    return 'Resident Evil '+(globalThis.RE1BrowserStorage?'Browser':'Android')+' 1.1 (build 42)\n'+navigator.userAgent+'\n'+
+    return 'Resident Evil '+(globalThis.RE1BrowserStorage?'Browser':'Android')+' 1.11 (build 47)\n'+navigator.userAgent+'\n'+
       'GPU: '+gpu+'\nOutput: '+canvas.width+'×'+canvas.height+' | HD: '+!!globalThis.RE1HDPack?.active+' | More FPS: '+!!document.getElementById('smooth-frames')?.checked+'\n'+
       'Recent frame gap: '+mean(gaps)+' ms mean / '+(n?recent[Math.floor((n-1)*.95)].toFixed(1):'—')+' ms p95 | Tick elapsed: '+mean(ticks)+' ms mean\n'+
       aimReport('Worst aiming with enemies',aimTiming.best[1])+aimReport('Worst aiming without enemies',aimTiming.best[0])+
       (globalThis.RE1Mods?.report?.()||'Mods: unavailable')+'\n'+
-      gameBindings+
+      gameBindings+scene+
       'Phase: '+stage+'\nPresented frames: '+frames+'\nInterpolated frames: '+generatedFrames+'\nLast file: '+file+'\n'+lines.join('\n');
   }
   function notify() {

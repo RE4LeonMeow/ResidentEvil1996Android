@@ -255,6 +255,12 @@ with sync_playwright() as p:
     data = page.evaluate("Array.from(Module.FS.readFile('/game/USA/Sound/gun01.wav'))")
     assert bytes(data) == RAW
     assert bytes(page.evaluate("Array.from(Module.FS.readFile('/game/USA/Enemy/EM1000.EMD'))"))==b'PC model fixture'
+    # Source provenance follows active raw-file overrides, including PC-style
+    # separators/case; a texture-only replacement does not change its source.
+    assert page.evaluate('(path)=>RE1Mods.fileOverridden(path)',r'eNeMy\eM1000.EmD')
+    assert page.evaluate('RE1Mods.fileOverridden("Sound/gun01.wav")')
+    assert not page.evaluate('RE1Mods.fileOverridden("Data/fontus.tim")')
+    assert not page.evaluate('RE1Mods.fileOverridden(null)')
     page.add_script_tag(url=f'http://127.0.0.1:{server.server_port}/hd-core.js')
     key = page.evaluate('''()=>{
       const data=Uint8Array.from(atob(fixtureGame['Data/fontus.tim']),c=>c.charCodeAt(0));
@@ -294,6 +300,7 @@ with sync_playwright() as p:
     page.wait_for_function('()=>!RE1Mods.busy()');page.locator('#mods-close').click()
     page.evaluate('RE1Mods.prepare()')
     assert page.evaluate('RE1Mods.readFile("Enemy/EM1000.EMD",0,1)') is None
+    assert not page.evaluate('RE1Mods.fileOverridden("Enemy/EM1000.EMD")')
     page.reload();page.locator('#launcher-mods').click()
     page.wait_for_function('()=>!document.querySelector("#mods-add").disabled')
     assert not page.get_by_role('checkbox',name='Enable Megaman',exact=True).is_checked()

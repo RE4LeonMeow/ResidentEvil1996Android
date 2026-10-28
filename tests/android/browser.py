@@ -51,6 +51,7 @@ with sync_playwright() as p:
     assert page.locator('#cheats-content').is_visible()
     assert page.locator('#cheat-save').is_disabled()
     assert page.locator('#cheat-health').is_disabled()
+    assert page.locator('#cheat-ignore-player').is_disabled()
     page.locator('#controls-tab').click()
     page.locator('#opacity').fill('75');page.locator('#opacity').dispatch_event('input')
     assert page.evaluate('RE1Input.settings.opacity')==.75
@@ -283,10 +284,45 @@ with sync_playwright() as p:
         stopped=test.evaluate('RE1Diag.frames')
         test.wait_for_timeout(150)
         assert test.evaluate('RE1Diag.frames')==stopped
+        # Cover/inner-screen/window sizes must retain the same live WASM/GL
+        # session and unsaved in-memory data. This exercises the web half of
+        # fold handling; Android Activity retention is checked in the APK.
+        test.evaluate('''() => {
+          window.foldSession={module:Module,gl:GL.currentContext.GLctx,
+            preferences:JSON.stringify(RE1Input.settings)};
+          Module.FS.writeFile('/fold-session-marker',new Uint8Array([17,128,255]));
+        }''')
+        for width,height in [(1100,850),(420,840),(740,540),(960,480)]:
+            test.set_viewport_size({'width':width,'height':height})
+            test.evaluate('re1DisplayChanged()')
+            test.evaluate('''() => {
+              const frame=document.querySelector('#game-frame').getBoundingClientRect();
+              if(Module!==foldSession.module||GL.currentContext.GLctx!==foldSession.gl)throw Error('Resize replaced the engine/GL context');
+              if(Module.FS.readFile('/fold-session-marker').join(',')!=='17,128,255')throw Error('Resize lost in-memory state');
+              if(JSON.stringify(RE1Input.settings)!==foldSession.preferences)throw Error('Resize changed control preferences');
+              if(!document.querySelector('#settings').open||!RE1Input.paused)throw Error('Resize closed or unpaused settings');
+              if(!(frame.width>0&&frame.height>0&&frame.left>=-1&&frame.top>=-1&&frame.right<=innerWidth+1&&frame.bottom<=innerHeight+1))throw Error('Viewport no longer fits display');
+            }''')
+            assert test.evaluate('RE1Diag.frames')==stopped
+        test.evaluate('re1Lifecycle(true);re1DisplayChanged()')
+        assert test.evaluate('RE1Input.paused')
+        test.evaluate('re1Lifecycle(false);re1DisplayChanged()')
+        assert test.evaluate('RE1Input.paused'), 'Settings must stay paused after display resume'
         # A browser/SDL blur must not latch the game paused after Resume.
         test.evaluate("() => window.dispatchEvent(new Event('blur'))")
         test.locator('#close-settings').click()
         test.wait_for_function('n => RE1Diag.frames>=n+2',arg=stopped)
+        test.evaluate('''() => {
+          RE1Input.press(991,'aim');
+          if(RE1Input.poll([])!==1024)throw Error('Held-input setup failed');
+          re1Native(1,.8,0,true);re1DisplayChanged();
+          if(RE1Input.poll([])!==0||RE1Input.pointers.size)throw Error('Display change left input stuck');
+          if(RE1Input.paused||Module!==foldSession.module)throw Error('Active display change interrupted session');
+        }''')
+        test.set_viewport_size({'width':1100,'height':850})
+        test.wait_for_function('n => RE1Diag.frames>=n+3',arg=stopped)
+        test.set_viewport_size({'width':960,'height':480})
+        print('PASS: GLES '+mode+' display resizing retains WASM/GL/in-memory state, preferences and pause state; held input cleared')
         test.wait_for_function('() => document.querySelector("#error").open',timeout=30000)
         assert test.locator('#error h2').inner_text()=='Graphics check passed'
         assert test.locator('#fps-counter').is_hidden()

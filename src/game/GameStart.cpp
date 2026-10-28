@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstring>
 #include "../system/AssetPath.h"
+#include "../platform/ModCampaign.h"
 
 extern void setSomeColor(int r, int g, int b);              // 0x00470a50
 extern void empty_40ae40(int);                              // 0x0040ae40 RoomInit.cpp
@@ -253,6 +254,7 @@ void InitPlayerData(void)
     g_main_state_flags2 = g_main_state_flags2 | MSF2_PLAYER_INITIALISED;
     g_playerEntity.position.z = 5000;
     g_playerEntity.directionAngle = 3072;
+    PortCampaignInitPlayer();
 }
 
 // ---------------------------------------------------------------------------
@@ -413,6 +415,7 @@ void InitializeGame(void)
     Task_execute(1, (void*)display_game_loading_message);
 
     LoadFile(GAME_DATA_ROOT "data\\bio_card.dat", g_loadDataDestPointer, 32);
+    PortCampaignCard(static_cast<unsigned char*>(g_loadDataDestPointer),1052);
 
     if ((g_main_state_flags & MSF_CONTINUE_GAME) == 0) {
         g_gameSessionInitFlag = 0;

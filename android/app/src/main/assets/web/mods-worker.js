@@ -27,6 +27,7 @@ async function init(){
       const dir=await rootDir.getDirectoryHandle(mod.id),file=await (await dir.getFileHandle('images.bin')).getFile();
       for(const record of mod.records)if(!core.KEY.test(record.key)||!Number.isSafeInteger(record.offset)||record.offset<0||!Number.isSafeInteger(record.size)||record.size<=32||record.offset+record.size>file.size)throw Error('Invalid texture index');
       if(mod.localeSize){const locale=await (await dir.getFileHandle('locale.bin')).getFile();if(locale.size!==mod.localeSize||locale.size>2097152)throw Error('Invalid translation cache');}
+      if(mod.campaignSize){const campaign=await (await dir.getFileHandle('campaign.bin')).getFile();if(campaign.size!==mod.campaignSize||campaign.size>262144)throw Error('Invalid campaign cache');core.campaign(new Uint8Array(await campaign.arrayBuffer()));}
     }catch(error){mod.enabled=false;mod.error='Cached textures are missing. Remove and reinstall this mod.';}
   }
   return library;
@@ -174,6 +175,21 @@ async function installationPlan(message,sourceFiles){
     const encoded=await bytes(info.entry,message.pack.id);
     const json=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(encoded));
     plan=core.plan(json,message.pack.files,info.prefix);needsDetails=typeof json.name!=='string'||!json.name.trim();
+    if(plan.runtime){
+      plan.campaign=new Uint8Array(await bytes(plan.runtime.campaign,message.pack.id));
+      plan.campaignInfo=core.campaign(plan.campaign);
+      if(plan.runtime.locale){
+        plan.locale=new Uint8Array(await bytes(plan.runtime.locale,message.pack.id));
+        const view=new DataView(plan.locale.buffer,plan.locale.byteOffset,plan.locale.byteLength);
+        if(plan.locale.length<16||view.getUint32(0,true)!==0x544c3152||view.getUint32(4,true)!==1||view.getUint32(12,true)!==plan.locale.length||view.getUint32(8,true)>4096)throw Error('Invalid campaign translation data.');
+        plan.localeCount=view.getUint32(8,true);
+      }
+      plan.localeOriginalFont=plan.runtime.originalFont;
+      plan.compatibility=core.compatibility(message.pack.files,[info.entry.path,plan.runtime.campaign.path,...(plan.runtime.locale?[plan.runtime.locale.path]:[]),...plan.textures.map(t=>t.file.path),...plan.overrides.map(t=>t.file.path)],'Android campaign mod',[
+        'Start a New Game for this campaign. Existing original-game saves are not campaign starting points.',
+        'Test the campaign on its own before combining it with other packs. Windows plugins are not executed.'
+      ]);
+    }
   }else if(info.format==='pc-data'){
     plan=core.pcPlan(message.pack.files,message.pack.name,sourceFiles);
     const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(message.pack.name.toLowerCase()));
@@ -237,9 +253,11 @@ async function install(message){return exclusive(async()=>{
     }
     archive.flush();archive.close();archive=null;
     const overrides=plan.overrides.map(({target,file})=>({target,slot:file.slot,size:file.size}));
-    const {textures,overrides:ignored,locale,...meta}=plan;
+    const {textures,overrides:ignored,locale,campaign,runtime,...meta}=plan;
     if(locale)await write(dir,'locale.bin',locale);
-    const mod={...meta,id,enabled:true,source:signature,bytes:offset,imageCount:groups.size,records,overrides,localeSize:locale?.length||0,
+    if(campaign)await write(dir,'campaign.bin',campaign);
+    const originalFontKey=locale&&plan.localeOriginalFont?(await original({source:'Data/fontus.tim',image:0,palette:0,rule:'page'},gameFiles,plan.overrides,id)).key:null;
+    const mod={...meta,id,enabled:true,source:signature,bytes:offset,imageCount:groups.size,records,overrides,localeSize:locale?.length||0,campaignSize:campaign?.length||0,localeOriginalFontKey:originalFontKey,
       localeFontKey:locale?records.find(record=>record.path==='Data/fontus.tim')?.key:null,installedAt:Date.now()};
     await write(dir,'manifest.json',new TextEncoder().encode(JSON.stringify(mod)));
     progress('Finishing installation');
@@ -330,6 +348,11 @@ onmessage=async event=>{
       const mod=library.find(m=>m.id===message.pack);if(!mod?.localeSize)throw Error('Translation is missing.');
       const dir=await rootDir.getDirectoryHandle(mod.id),file=await (await dir.getFileHandle('locale.bin')).getFile();
       if(file.size!==mod.localeSize||file.size>2097152)throw Error('Translation cache is invalid.');result=await file.arrayBuffer();
+    }
+    else if(message.type==='campaign'){
+      const mod=library.find(m=>m.id===message.pack);if(!mod?.campaignSize)throw Error('Campaign data is missing.');
+      const dir=await rootDir.getDirectoryHandle(mod.id),file=await (await dir.getFileHandle('campaign.bin')).getFile();
+      if(file.size!==mod.campaignSize||file.size>262144)throw Error('Campaign cache is invalid.');result=await file.arrayBuffer();core.campaign(new Uint8Array(result));
     }
     else if(message.type==='inspect')result=await inspect(message);
     else if(message.type==='install')result=await install(message);

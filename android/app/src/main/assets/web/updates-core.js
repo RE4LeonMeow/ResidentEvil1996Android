@@ -1,7 +1,7 @@
 // Port-owned stable release comparison, shared with launcher tests.
 (function(root){
   'use strict';
-  const CURRENT='1.1';
+  const CURRENT='1.11';
   function version(value){
     if(typeof value!=='string')return null;
     const match=/^v?(\d{1,4})\.(\d{1,4})(?:\.(\d{1,4}))?$/.exec(value.trim());

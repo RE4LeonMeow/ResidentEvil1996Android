@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.pm.PackageInfo;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Bitmap;
 import android.os.Build;
@@ -105,7 +106,8 @@ public final class MainActivity extends Activity implements InputManager.InputDe
         super.onCreate(state);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         immersive();
-        record("Resident Evil Android 1.1 (build 42) | "+Build.MANUFACTURER+" "+Build.MODEL+" | Android "+Build.VERSION.RELEASE);
+        record("Resident Evil Android 1.11 (build 47) | "+Build.MANUFACTURER+" "+Build.MODEL+" | Android "+Build.VERSION.RELEASE);
+        record("Activity created; restored state="+(state!=null));
         PackageInfo provider=WebView.getCurrentWebViewPackage();
         record("WebView: "+(provider==null?"unavailable":provider.packageName+" "+provider.versionName));
         try{modArchive=new ModArchive(new java.io.File(getFilesDir(),"mods-v1"),new java.io.File(getCacheDir(),"mod-imports"));}
@@ -700,6 +702,24 @@ public final class MainActivity extends Activity implements InputManager.InputDe
     @Override public void onInputDeviceRemoved(int id) { if(gamepad.remove(id)){record("Controller removed: "+id);publishPad();} }
     @Override public void onInputDeviceAdded(int id) {}
     @Override public void onInputDeviceChanged(int id) { if(gamepad.remove(id)){record("Controller changed: "+id);publishPad();} }
+    @Override public void onConfigurationChanged(Configuration config) {
+        super.onConfigurationChanged(config);
+        record("Display configuration changed: "+config.screenWidthDp+"x"+config.screenHeightDp+
+            " dp; smallest="+config.smallestScreenWidthDp+"; density="+config.densityDpi+
+            "; layout=0x"+Integer.toHexString(config.screenLayout));
+        immersive();clearPad();
+        // The manifest retains this Activity across fold/unfold. Keep the same
+        // WebView and engine memory; only refresh layout and release old input.
+        // Never resume through this callback: settings or onPause may still
+        // legitimately hold the game paused while the display is changing.
+        if(web!=null&&!destroyed&&!rendererGone&&!resetting) {
+            web.requestLayout();
+            web.post(()->{
+                if(web!=null&&!destroyed&&!rendererGone&&!resetting)
+                    web.evaluateJavascript("window.re1DisplayChanged?.()",null);
+            });
+        }
+    }
     @Override public void onWindowFocusChanged(boolean focused) {super.onWindowFocusChanged(focused);if(focused)immersive();else clearPad();}
     @Override protected void onPause() {
         paused=true;clearPad();if(!rendererGone){if(!resetting)web.evaluateJavascript("window.re1Lifecycle?.(true)",null);web.onPause();}super.onPause();

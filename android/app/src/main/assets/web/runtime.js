@@ -32,13 +32,24 @@ Module['preRun'] = [function () {
       FS.mkdirTree('/game/USA'); FS.mkdirTree('/persist');
       const locale=globalThis.RE1Mods?.localization();
       if(locale)FS.writeFile('/game/re1-localization.bin',locale);
+      const campaign=globalThis.RE1Mods?.campaign?.();
+      if(campaign)FS.writeFile('/game/re1-campaign.bin',campaign);
       globalThis.RE1Diag?.stage('Restoring saves and settings');
       FS.mount(IDBFS, {}, '/persist');
       await new Promise((resolve, reject) => FS.syncfs(true, e => e ? reject(e) : resolve()));
-      FS.mkdirTree('/persist/SAVE');
+      const saveDirectory=globalThis.RE1Mods?.saveDirectory?.()||'/persist/SAVE';
+      FS.mkdirTree(saveDirectory);
       if (!FS.analyzePath('/persist/config.ini').exists)
         FS.writeFile('/persist/config.ini', '[Display]\nWidth=640\nHeight=480\nFullScreen=0\nVSync=1\n[Assets]\nPath=/game\nVersion=USA\n[Save]\nPath=/persist/SAVE\n[Game]\nMode=OG\n');
-      FS.symlink('/persist/config.ini', '/game/config.ini');
+      let config='/persist/config.ini';
+      if(campaign){
+        config=saveDirectory.slice(0,-5)+'/config.ini';
+        let text=FS.readFile(FS.analyzePath(config).exists?config:'/persist/config.ini',{encoding:'utf8'});
+        text=text.replace(/(\[Save\][\s\S]*?\nPath=)[^\r\n]*/i,'$1'+saveDirectory);
+        FS.writeFile(config,text);
+        globalThis.RE1Diag?.log('Campaign saves: '+saveDirectory);
+      }
+      FS.symlink(config, '/game/config.ini');
       const cache = new Map(); let cacheSize = 0;
       const chunkSize = 256*1024, budget = 16*1024*1024;
       let reportedReadError = false;

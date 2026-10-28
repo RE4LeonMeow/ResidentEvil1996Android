@@ -37,7 +37,7 @@ with sync_playwright() as p:
     page.add_init_script('''window.testOnline=true;window.testLinks=[];
       window.AndroidLauncher={hasUpdateChecker:()=>true,updateNetworkAvailable:()=>testOnline,
         openExternal:link=>testLinks.push(link),ready:()=>false,status:()=>"Select a folder"};''')
-    replies = {'value': release('v1.2'), 'status': 200, 'requests': []}
+    replies = {'value': release('v1.12'), 'status': 200, 'requests': []}
 
     def respond(route):
         replies['requests'].append(route.request.url)
@@ -46,7 +46,7 @@ with sync_playwright() as p:
     page.route(CHECK_URL, respond)
     page.goto(origin + '/index.html')
     page.wait_for_function('()=>document.querySelector("#updates").dataset.state==="available"')
-    assert 'v1.2' in page.locator('#update-status').inner_text()
+    assert 'v1.12' in page.locator('#update-status').inner_text()
     assert page.locator('#update-open').is_enabled()
     assert page.locator('dialog[open]').count() == 0
     assert page.locator('#folder').is_enabled()
@@ -94,7 +94,7 @@ with sync_playwright() as p:
     assert page.locator('#update-open').is_hidden()
     page.locator('#update-status').click()
     assert len(replies['requests']) == count
-    replies['value'] = release('v1.2')
+    replies['value'] = release('v1.12')
     page.evaluate('testOnline=true;window.dispatchEvent(new Event("online"))')
     page.wait_for_function('()=>document.querySelector("#updates").dataset.state==="available"')
     page.locator('#launcher-settings').click()

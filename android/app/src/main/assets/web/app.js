@@ -150,6 +150,10 @@ window.re1SaveDialogChanged=pause;
 window.re1ModsDialogChanged=pause;
 window.re1Lifecycle=hidden=>{background=hidden;pause();if(hidden&&ready){Module._re1_web_settings_save();window.re1Sync?.();}};
 window.addEventListener('blur',clear);
+// A fold/display change can resize the page without a pause or focus event.
+// Drop held pointers/buttons while keeping the engine, menus and preferences.
+window.addEventListener('resize',()=>{clear();paint();});
+window.re1DisplayChanged=()=>window.dispatchEvent(new Event('resize'));
 document.addEventListener('visibilitychange',()=>window.re1Lifecycle(document.hidden));
 function finishLayout(){editing=false;$('touch').classList.remove('editing');$('layout-bar').hidden=true;persist();paint();}
 window.re1OpenSettings=()=>{if(window.RE1Mods?.close())return;if($('saves').open){if(!window.RE1SaveData?.busy()){$('saves').close();pause();}return;}if($('donation').open){$('donation').close();pause();return;}if($('credits').open){$('credits').close();pause();return;}if(editing)finishLayout();refreshLoadingSetting();$('restore-game-actions').disabled=!ready;if(!$('settings').open)window.re1ShowDialog($('settings'));pause();};
@@ -309,6 +313,7 @@ window.re1Ready=()=>{
   Module._re1_web_set_smooth($('smooth-frames').checked?1:0);
   $('canvas').focus({preventScroll:true});
   RE1Diag.stage('Starting game engine');
+  if(window.RE1Mods?.campaign?.()&&(typeof Module._re1_web_campaign_load!=='function'||Module._re1_web_campaign_load()!==1)){re1Failure('The installed campaign data could not be loaded. Use a matching engine/APK build or reinstall that campaign.');return;}
   if(window.RE1Mods?.localization()&&(typeof Module._re1_web_localization_load!=='function'||Module._re1_web_localization_load()!==1)){re1Failure('The installed translation cache could not be loaded. Disable or reinstall that translation in Mods, and use a matching engine/APK build.');return;}
   Module.callMain(graphicsOnly?['--graphics-test']:[]);pause();
 };

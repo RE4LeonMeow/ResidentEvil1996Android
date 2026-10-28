@@ -2,7 +2,9 @@
 // no engine, game-data, configuration or HD-pack changes are required.
 (function(root){
   'use strict';
-  const DB='/persist',STORE='FILE_DATA',PREFIX='/persist/SAVE/';
+  const DB='/persist',STORE='FILE_DATA';
+  const saveDirectory=()=>root.RE1Mods?.saveDirectory?.()||'/persist/SAVE';
+  const readyDirectory=async()=>root.RE1Mods?.savesReady?root.RE1Mods.savesReady():saveDirectory();
   const MAX=131072,SIZES=[0x800,0xa82],NAME=/^savedat([1-8])\.dat$/;
   const fail=message=>{throw Error(message);};
   function checksum(bytes){
@@ -108,13 +110,14 @@
     });}finally{db.close();}
   }
   async function read(){
+    const prefix=await readyDirectory()+'/';
     return database('readonly',(store,done)=>{
       const files=[];const request=store.openCursor();
       request.onsuccess=()=>{
         const cursor=request.result;
         if(!cursor){done(files.sort((a,b)=>a.name.localeCompare(b.name)));return;}
-        if(typeof cursor.key==='string'&&cursor.key.startsWith(PREFIX)){
-          const name=cursor.key.slice(PREFIX.length);
+        if(typeof cursor.key==='string'&&cursor.key.startsWith(prefix)){
+          const name=cursor.key.slice(prefix.length);
           if(NAME.test(name))files.push({name,contents:cursor.value.contents});
         }
         cursor.continue();
@@ -122,10 +125,12 @@
     });
   }
   async function write(files){
+    const directory=await readyDirectory(),prefix=directory+'/';
     // One transaction: quota/provider/transaction failure cannot leave half an import.
     return database('readwrite',store=>{
-      store.put({timestamp:new Date(),mode:16895},'/persist/SAVE');
-      for(const file of files)store.put({timestamp:new Date(),mode:33206,contents:file.contents},PREFIX+file.name);
+      const parts=directory.split('/').slice(1);
+      for(let n=2;n<=parts.length;n++)store.put({timestamp:new Date(),mode:16895},'/'+parts.slice(0,n).join('/'));
+      for(const file of files)store.put({timestamp:new Date(),mode:33206,contents:file.contents},prefix+file.name);
     });
   }
   const locked=operation=>root.navigator?.locks?root.navigator.locks.request('re1-save-storage',{ifAvailable:true},lock=>{
@@ -180,7 +185,7 @@
     if(result.error)task.reject(Error(result.error));else task.resolve(result);
   };
   $('launcher-saves').onclick=()=>{
-    if(!allowed())return;reset();status('Export a backup before uninstalling or clearing app/browser data. Backups work in both editions.');root.re1ShowDialog(dialog);root.re1SaveDialogChanged?.();
+    if(!allowed())return;reset();status('Export a backup before uninstalling or clearing app/browser data. An enabled campaign uses its own save slots; disable it to manage your normal-game saves.');root.re1ShowDialog(dialog);root.re1SaveDialogChanged?.();
   };
   $('saves-close').onclick=()=>{if(!busy){dialog.close();root.re1SaveDialogChanged?.();}};
   dialog.addEventListener('cancel',event=>{if(busy)event.preventDefault();else setTimeout(()=>root.re1SaveDialogChanged?.(),0);});

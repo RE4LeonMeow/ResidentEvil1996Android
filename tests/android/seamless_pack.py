@@ -32,6 +32,14 @@ parser.add_argument('--profile', required=True, type=pathlib.Path)
 parser.add_argument('--output', required=True, type=pathlib.Path)
 parser.add_argument('--port', default=18087, type=int)
 parser.add_argument('--reuse', action='store_true')
+parser.add_argument('--ignore-player-combat-check',action='store_true',help='With --ignore-player-check, test shooting and killing frozen enemies')
+parser.add_argument('--ignore-player-check',action='store_true',help='Test Ignore player in a private fixture with live autonomous enemies')
+parser.add_argument('--scene-room',type=lambda value:int(value,16),help='Private campaign fixture: start in a room and capture both aspect ratios')
+parser.add_argument('--scene-stage',type=int,choices=range(1,8),default=5,help='With --scene-room, select stage 1–7 (default: laboratory stage 5)')
+parser.add_argument('--wide',action='store_true',help='Start with 16:9 framing')
+parser.add_argument('--base', action='store_true', help='Run a normal-game regression with imported mods disabled')
+parser.add_argument('--campaign-continue', action='store_true', help='Load the first campaign slot instead of starting a new game')
+parser.add_argument('--campaign', action='store_true', help='Exercise a privately supplied data-only campaign pack')
 parser.add_argument('--rebirth', action='store_true', help='Exercise a privately supplied Classic REbirth translation instead of SHDP')
 parser.add_argument('--movie-check', action='store_true')
 parser.add_argument('--jill', action='store_true')
@@ -39,6 +47,9 @@ parser.add_argument('--textures-only', action='store_true', help='Check installe
 parser.add_argument('--inventory-check',action='store_true',help='Verify HD item sprites in the actual game inventory, then stop')
 parser.add_argument('--movie-suite',action='store_true',help='With --textures-only, also test imported Dm1/PJ/Ed4 playback and seeks')
 args = parser.parse_args()
+if sum([args.base,args.campaign,args.rebirth])>1:parser.error('Choose one of --base, --campaign or --rebirth')
+if args.scene_room is not None and (not args.campaign or not 0<=args.scene_room<29):parser.error('--scene-room requires --campaign and a room 00–1c')
+if args.campaign_continue and not args.campaign:parser.error('--campaign-continue requires --campaign')
 if args.movie_suite and not args.textures_only:parser.error('--movie-suite requires --textures-only')
 if args.rebirth and (args.textures_only or args.inventory_check or args.movie_check or args.movie_suite):parser.error('--rebirth runs its own gameplay/inventory/save checks')
 args.movie_check=args.movie_check or args.movie_suite
@@ -256,7 +267,10 @@ try:
         page.goto(f'http://127.0.0.1:{server.server_port}/index.html')
         page.locator('#launcher-mods').click()
         page.wait_for_function('()=>!document.querySelector("#mods-add").disabled')
-        if not args.reuse or page.locator('.mod-row').count() == 0:
+        if args.base:
+            for checkbox in page.locator('#mods-list input[type=checkbox]').all():
+                if checkbox.is_checked():checkbox.uncheck();page.wait_for_function('()=>!RE1Mods.busy()')
+        elif not args.reuse or page.locator('.mod-row').count() == 0:
             page.locator('#mods-add').click()
             deadline = time.monotonic() + 1800
             last = ''
@@ -268,18 +282,26 @@ try:
                     last = status
             assert not page.evaluate('RE1Mods.busy()'), 'SHDP import timed out'
             assert 'installed and enabled' in page.locator('#mods-status').inner_text(), page.locator('#mods-status').inner_text()
-        assert ('Classic REbirth translation' if args.rebirth else 'Seamless HD Project') in page.locator('#mods-list').inner_text()
-        page.locator('#mods-list summary').filter(has_text='Credits').first.click()
-        if not args.rebirth:assert 'MoArtis' in page.locator('#mods-list').inner_text()
+        if not args.base:
+            assert ("Wesker's Rebirth" if args.campaign else 'Classic REbirth translation' if args.rebirth else 'Seamless HD Project') in page.locator('#mods-list').inner_text()
+            page.locator('#mods-list summary').filter(has_text='Credits').first.click()
+            if not (args.base or args.rebirth or args.campaign):assert 'MoArtis' in page.locator('#mods-list').inner_text()
         page.screenshot(path=str(args.output / 'mods-installed.png'))
         page.locator('#mods-close').click()
+        if args.wide:page.evaluate('RE1Presentation.setAspect("16:9")')
+        if args.scene_room is not None:
+            page.evaluate("""({stage,room})=>{const prepare=RE1Mods.prepare.bind(RE1Mods);RE1Mods.prepare=async()=>{
+              const result=await prepare(),bytes=RE1Mods.campaign(),v=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+              bytes[32+512]=stage-1;bytes[32+513]=room;bytes[32+514]=0;
+              v.setInt16(14,4500,true);v.setInt16(16,4200,true);v.setInt16(18,2048,true);return result;
+            };}""",{'stage':args.scene_stage,'room':args.scene_room})
         page.locator('#launch').click()
         page.wait_for_function('()=>RE1Diag.frames>=3||document.querySelector("#error").open')
         assert not page.locator('#error').evaluate('(d)=>d.open'), page.locator('#error-text').inner_text()
-        if not args.rebirth:assert page.evaluate('!!Module.re1HDActive'),'SHDP no longer selects the existing HD framebuffer'
+        if not (args.base or args.rebirth or args.campaign):assert page.evaluate('!!Module.re1HDActive'),'SHDP no longer selects the existing HD framebuffer'
         if args.movie_check:
             page.wait_for_function('()=>document.querySelector("#mod-video").videoWidth>=1280&&document.querySelector("#mod-video").currentTime>.2')
-            page.wait_for_function('document.querySelector("#mod-video").hasAttribute("data-ready")')
+            page.wait_for_function('()=>document.querySelector("#mod-video").hasAttribute("data-ready")')
             assert page.evaluate('getComputedStyle(document.querySelector("#mod-video")).opacity')=='1'
             assert page.locator('#mod-video').get_attribute('src').startswith('blob:')
             assert not media_requests,media_requests
@@ -313,8 +335,15 @@ try:
         # Advance startup/title/character dialogs with ordinary touch input.
         controlled = False
         chose_jill = False
+        chose_continue = False
         for step in range(200):
             page.wait_for_timeout(350)
+            if args.campaign_continue and not chose_continue and page.evaluate('()=>RE1Diag.report().toLowerCase().includes("data/t_start.tim")'):
+                page.wait_for_timeout(2500)
+                page.screenshot(path=str(args.output/'continue-title.png'))
+                page.locator('#touch-down').click(delay=100)
+                page.wait_for_timeout(400)
+                chose_continue=True
             if args.jill and not chose_jill and page.evaluate('()=>RE1Diag.report().toLowerCase().includes("data/sel_back.pix")'):
                 page.wait_for_timeout(2500)
                 page.locator('#touch-right').click(delay=100)
@@ -323,12 +352,87 @@ try:
             page.locator('#touch-action').click(delay=100)
             if step % 5 == 0:
                 print('GAME', page.evaluate('()=>({frames:RE1Diag.frames,mode:RE1Presentation.mode,mod:RE1Mods.report(),hits:RE1Mods.hits,stage:document.querySelector("#boot-progress").textContent})'), flush=True)
+            if args.scene_room is not None and page.evaluate('({stage,room})=>Module._re1_web_scene_state?.(0)===stage-1&&Module._re1_web_scene_state(1)===room&&RE1Diag.report().includes("end of game init")',{'stage':args.scene_stage,'room':args.scene_room}):
+                controlled=True
+                break
             if page.evaluate('()=>!!(Module._re1_web_cheat(0,0)&256)'):
                 controlled = True
                 break
         page.wait_for_timeout(2000)
         page.screenshot(path=str(args.output / 'gameplay.png'))
         assert controlled, 'The gameplay test did not reach normal player control'
+        if args.ignore_player_check:
+            read_enemies="""()=>Array.from({length:30},(_,slot)=>({slot,values:Array.from({length:8},(_,field)=>Module._re1_web_enemy_state(slot,field))})).filter(e=>e.values[0]&&e.values[1]<19&&e.values[5]>0)"""
+            page.evaluate('window.re1OpenSettings()');page.locator('#cheats-tab').click()
+            if page.locator('#cheats-warning').is_visible():page.locator('#cheats-agree').click()
+            assert page.locator('#cheat-ignore-player').is_enabled(),page.evaluate('RE1Diag.report()')
+            page.locator('#cheat-ignore-player').check()
+            assert page.evaluate('!!(Module._re1_web_cheat(0,0)&4)')
+            page.screenshot(path=str(args.output/'ignore-player-enabled.png'))
+            page.locator('#close-settings').click();page.wait_for_timeout(300)
+            frozen_before=page.evaluate(read_enemies);assert frozen_before,'No live enemies in the private fixture'
+            page.wait_for_timeout(3500);frozen_after=page.evaluate(read_enemies)
+            print('FROZEN',frozen_before,frozen_after,flush=True)
+            assert [(e['slot'],e['values'][3:5]) for e in frozen_before]==[(e['slot'],e['values'][3:5]) for e in frozen_after],'Enemies moved with Ignore player enabled'
+            page.screenshot(path=str(args.output/'enemies-frozen.png'))
+            if not args.ignore_player_combat_check:
+                page.evaluate('window.re1OpenSettings()');page.locator('#cheats-tab').click();page.locator('#cheat-ignore-player').uncheck()
+                assert not page.evaluate('!!(Module._re1_web_cheat(0,0)&4)')
+                page.locator('#close-settings').click();page.wait_for_timeout(1800)
+                resumed=page.evaluate(read_enemies)
+                print('RESUMED',resumed,flush=True)
+                assert any(e['values'][3:5]!=next((old['values'][3:5] for old in frozen_after if old['slot']==e['slot']),e['values'][3:5]) for e in resumed),'Enemies did not resume after disabling the cheat'
+                page.screenshot(path=str(args.output/'enemies-resumed.png'))
+                report={'before':frozen_before,'frozen':frozen_after,'resumed':resumed,'errors':errors}
+                (args.output/'result.json').write_text(json.dumps(report,indent=2));assert not errors,errors
+                print('PASS: enemies freeze through the Cheats UI and resume when disabled',flush=True)
+                browser.close();raise SystemExit(0)
+            resumed=frozen_after
+            page.evaluate('window.re1OpenSettings()');page.locator('#cheats-tab').click()
+            page.locator('#cheat-ammo').check();page.locator('#close-settings').click()
+            page.evaluate('RE1Input.press("test-aim","aim")');page.wait_for_timeout(400)
+            for shot in range(16):
+                page.evaluate('RE1Input.press("test-fire","action")');page.wait_for_timeout(150)
+                page.evaluate('RE1Input.release("test-fire")');page.wait_for_timeout(300)
+            page.evaluate('RE1Input.release("test-aim")');page.wait_for_timeout(1000)
+            shot_enemies=page.evaluate("""()=>Array.from({length:30},(_,slot)=>({slot,values:Array.from({length:8},(_,field)=>Module._re1_web_enemy_state(slot,field))}))""")
+            print('SHOT',[(e['slot'],e['values']) for e in shot_enemies if e['values'][0]],flush=True)
+            page.screenshot(path=str(args.output/'frozen-enemies-can-be-shot.png'))
+            assert any(shot_enemies[e['slot']]['values'][5]<e['values'][5] for e in resumed),'Frozen enemies did not take weapon damage'
+            assert any(shot_enemies[e['slot']]['values'][5]<=0 for e in resumed),'Frozen enemy could not be killed'
+            page.evaluate('window.re1OpenSettings()');page.locator('#cheats-tab').click();page.locator('#cheat-disable').click()
+            assert not page.locator('#cheat-ignore-player').is_checked()
+            assert not page.evaluate('Module._re1_web_cheat(0,0)&7')
+            report={'shotEnemies':shot_enemies,'before':frozen_before,'frozen':frozen_after,'resumed':resumed,'report':page.evaluate('RE1Diag.report()'),'errors':errors}
+            (args.output/'result.json').write_text(json.dumps(report,indent=2));assert not errors,errors
+            print('PASS: frozen enemies take gunfire and die; Disable all clears the toggle',flush=True)
+            browser.close();raise SystemExit(0)
+        if args.scene_room is not None:
+            for aspect in ['4:3','16:9']:
+                page.evaluate('(aspect)=>RE1Presentation.setAspect(aspect)',aspect);page.wait_for_timeout(1200)
+                page.screenshot(path=str(args.output/('scene-'+aspect.replace(':','x')+'.png')))
+            camera=page.evaluate('Module._re1_web_scene_state(2)')
+            source=f'Stage{args.scene_stage}/RC{args.scene_stage}'+format(args.scene_room,'02X')+format(camera,'X')+'.pak'
+            manifest=json.loads(pack.read('mod.json'))
+            overridden=any(item['target'].lower()==source.lower() for item in manifest.get('files',[]))
+            background=page.evaluate("""({source,overridden})=>{
+              const raw=RE1HDCore.unpackPak(Module.FS.readFile('/game/USA/'+source));let rgba,w,h;
+              if(overridden){const t=RE1HDCore.tim(raw,0);w=t.w;h=t.h;rgba=RE1HDCore.decode(t,0,'opaque');}
+              else{
+                // Retail GOG headers can say 320x240 while the bordered room
+                // uses 316x236 pixel rows. Check the actual legacy upload key.
+                w=Module._re1_web_scene_state(3);h=Module._re1_web_scene_state(4);
+                rgba=new Uint8Array(w*h*4);const v=new DataView(raw.buffer,raw.byteOffset,raw.byteLength);
+                for(let i=0;i<w*h;i++){const c=v.getUint16(20+i*2,true);rgba[i*4]=(c&31)*255/31;rgba[i*4+1]=((c>>5)&31)*255/31;rgba[i*4+2]=((c>>10)&31)*255/31;rgba[i*4+3]=255;}
+              }
+              const key=RE1HDCore.key(rgba,w,h);return {source,overridden,w,h,key,uploaded:originalUploads.has(key),hits:RE1Mods.hits};
+            }""",{'source':source,'overridden':overridden})
+            report={'report':page.evaluate('RE1Diag.report()'),'scene':page.evaluate('Array.from({length:11},(_,i)=>Module._re1_web_scene_state(i))'),'background':background,'errors':errors}
+            (args.output/'result.json').write_text(json.dumps(report,indent=2))
+            assert background['uploaded'],('Background was uploaded with the wrong row stride',background)
+            print('SCENE',report['scene'],flush=True)
+            assert not errors,errors
+            browser.close();raise SystemExit(0)
         page.evaluate('''()=>{
             window.controllerTurns=0;const turn=Module._re1_web_quick_turn;
             Module._re1_web_quick_turn=(...args)=>{const result=turn(...args);if(result)controllerTurns++;return result;};
@@ -354,6 +458,13 @@ try:
             if page.evaluate('()=>!!(Module._re1_web_cheat(0,0)&256)'):break
             page.locator('#touch-action').click(delay=100);page.wait_for_timeout(400)
         assert page.evaluate('()=>!!(Module._re1_web_cheat(0,0)&256)'), 'Inventory did not return to player control'
+        if args.campaign_continue:
+            report={'report':page.evaluate('RE1Diag.report()'),'errors':errors}
+            (args.output/'result.json').write_text(json.dumps(report,indent=2))
+            assert '[MOD CAMPAIGN] Initial player' not in report['report'],'Continue reset new-game spawn/inventory'
+            assert not errors,errors
+            print('PASS: actual campaign save loaded with player control and inventory; new-game hooks did not reset it',flush=True)
+            browser.close();raise SystemExit(0)
         start_hits = page.evaluate('RE1Mods.hits')
         # The same input model used by real touch buttons, held across ticks.
         page.evaluate('()=>{RE1Input.press("walk","up");RE1Input.press("run","run");}')
@@ -369,6 +480,67 @@ try:
         page.wait_for_function('()=>RE1Diag.report().toLowerCase().includes("data/type00.tim")')
         page.wait_for_timeout(2000)
         page.screenshot(path=str(args.output/'typewriter.png'))
+        if args.base:
+            report={'report':page.evaluate('RE1Diag.report()'),'errors':errors}
+            (args.output/'result.json').write_text(json.dumps(report,indent=2))
+            assert page.evaluate('RE1Mods.campaign()') is None
+            assert page.evaluate('RE1Mods.localization()') is None
+            assert page.evaluate('RE1Mods.saveDirectory()')=='/persist/SAVE'
+            assert '[MOD CAMPAIGN]' not in report['report'] and not errors,report
+            print('PASS: normal GOG new game, controls, inventory and save screen with campaign hooks inactive',flush=True)
+            browser.close();raise SystemExit(0)
+        if args.campaign:
+            if args.campaign_continue:
+                assert '[MOD CAMPAIGN] Initial player' not in page.evaluate('RE1Diag.report()'),'Continue reset the new-game spawn/inventory'
+            else:
+                for _ in range(50):
+                    if page.evaluate("Module.FS.analyzePath('/persist/CAMPAIGNS/weskers-rebirth/SAVE/savedat1.dat').exists"):break
+                    page.locator('#touch-action').click(delay=100);page.wait_for_timeout(350)
+                assert page.evaluate("Module.FS.analyzePath('/persist/CAMPAIGNS/weskers-rebirth/SAVE/savedat1.dat').exists"),'The game did not save into the campaign folder'
+                page.evaluate('()=>new Promise((resolve,reject)=>Module.FS.syncfs(false,error=>error?reject(error):resolve()))')
+                saved=page.evaluate("Array.from(Module.FS.readFile('/persist/CAMPAIGNS/weskers-rebirth/SAVE/savedat1.dat'))")
+                assert len(saved)==2690 and saved[512]==4 and saved[513]==19,(len(saved),saved[512:515])
+                assert not page.evaluate("Module.FS.analyzePath('/persist/SAVE/savedat1.dat').exists"),'Campaign save leaked into base slots'
+            # Campaign-specific save paths must never reuse the base SAVE root.
+            assert page.evaluate("RE1Mods.saveDirectory()")=='/persist/CAMPAIGNS/weskers-rebirth/SAVE'
+            assert '/persist/CAMPAIGNS/weskers-rebirth/SAVE' in page.evaluate("Module.FS.readFile('/game/config.ini',{encoding:'utf8'})")
+            page.evaluate('window.re1OpenSettings()')
+            texture_probes=[]
+            for definition in json.loads(pack.read('mod.json'))['textures']:
+                key=definition.get('key')
+                if not key:
+                    key=page.evaluate("""definition=>{
+                      const bytes=Module.FS.readFile('/game/USA/'+definition.source);
+                      const tim=RE1HDCore.tim(RE1HDCore.unpackPak(bytes),0);
+                      return RE1HDCore.key(RE1HDCore.decode(tim,0,'opaque'),tim.w,tim.h);
+                    }""",definition)
+                page.evaluate('(key)=>RE1HDPack.request(key)',key)
+                page.wait_for_function('(key)=>RE1HDPack.pixels(key)>0',arg=key)
+                actual=page.evaluate("""async key=>{
+                  const raw=new Uint8Array(RE1HDPack.pixels(key));if(!RE1HDPack.take(key,raw))throw Error('Missing campaign texture');
+                  const v=new DataView(raw.buffer),hash=await crypto.subtle.digest('SHA-256',raw.subarray(32));
+                  return {w:v.getUint32(16,true),h:v.getUint32(20,true),hash:Array.from(new Uint8Array(hash),x=>x.toString(16).padStart(2,'0')).join('')};
+                }""",key)
+                image=Image.open(io.BytesIO(pack.read(definition['file']))).convert('RGBA')
+                assert (actual['w'],actual['h'])==image.size
+                assert actual['hash']==hashlib.sha256(image.tobytes()).hexdigest(),definition
+                texture_probes.append({'file':definition['file'],'key':key,**actual})
+            video_probes=[]
+            for name in ['capcom','ou','pu','dm3','dm4']:
+                assert page.evaluate('(name)=>RE1ModVideo.open("/game/USA/Movie/"+name+".mp4",0)',name)
+                page.evaluate('RE1ModVideo.suspend(false)')
+                page.wait_for_function('()=>document.querySelector("#mod-video").hasAttribute("data-ready")')
+                page.wait_for_function('()=>document.querySelector("#mod-video").currentTime>.1')
+                video_probes.append(page.evaluate("""()=>{const v=document.querySelector('#mod-video');return {width:v.videoWidth,height:v.videoHeight,duration:v.duration,time:v.currentTime,error:v.error?.code||0};}"""))
+                assert not video_probes[-1]['error']
+                if name=='ou':page.screenshot(path=str(args.output/'campaign-intro.png'))
+                page.evaluate('RE1ModVideo.close()')
+            report={'textures':texture_probes,'videos':video_probes,'report':page.evaluate('RE1Diag.report()'),'errors':errors,'campaignBytes':page.evaluate('RE1Mods.campaign()?.length||0'),'uploads':page.evaluate('RE1Mods.hits')}
+            (args.output/'result.json').write_text(json.dumps(report,indent=2))
+            assert report['campaignBytes']>2020 and '[MOD CAMPAIGN] Loaded' in report['report'],report
+            assert not errors,errors
+            print('PASS: campaign imported, new-game hook, gameplay, controller turn, inventory and save screen rendered',flush=True)
+            browser.close();raise SystemExit(0)
         if args.rebirth:
             report={'report':page.evaluate('RE1Diag.report()'),'errors':errors,'localeBytes':page.evaluate('RE1Mods.localization()?.length||0'),'uploads':page.evaluate('RE1Mods.hits')}
             page.evaluate('window.re1OpenSettings()')

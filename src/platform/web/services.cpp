@@ -10,6 +10,8 @@
 #include "../../game/PortCheats.h"
 #include "../../marni/MarniSystem.h"
 #include "localization.inl"
+#include "campaign.inl"
+#include "../ScreenHud.h"
 
 // Port-owned session state, deliberately outside BioCardLayout/save data.
 static unsigned s_cheats = 0;
@@ -64,6 +66,17 @@ void PortCheatsMaintain()
     // occur; this is HP maintenance, not a resurrection/state repair feature.
     if (s_cheats & 1) CheatHeal();
     if (s_cheats & 2) CheatRefill();
+}
+
+bool PortCheatsFreezeEnemy(const Entity* entity,bool hostile)
+{
+    if(!(s_cheats&4)||!hostile||!entity||!CheatGameplay())return false;
+    // Do not suspend story shots, a live grab/release, an actor's initial model
+    // setup, incoming weapon hits or death handling. 0x40/0x80 behaviour flags
+    // and state 8 hand monsters to their SCD drivers, not autonomous combat AI.
+    if((g_message_flags&0x101)!=0x101||(g_playerEntity.isBeingAttackedFlag&0x3f))return false;
+    return (entity->status_flags&1)&&entity->state!=0&&entity->state!=8&&
+        !(entity->behavior_flags&0xc0)&&entity->health>0&&entity->hit_state==0;
 }
 
 void PortCheatsProcessRequests()
@@ -128,7 +141,8 @@ int re1_web_interpolation_wait_ms()
     return s_smoothFrames && g_bWindowFocused && remaining>=24 ? 16 : 0;
 }
 // 0: status; 1: agree; 2/3: health/ammo toggle; 4/5: heal/refill;
-// 6/7: queue save/item box; 8: disable all. Toggles last this runtime only.
+// 6/7: queue save/item box; 8: disable all; 9: ignore player (mask 0x4).
+// Toggles last this runtime only.
 EMSCRIPTEN_KEEPALIVE int re1_web_cheat(int action, int enabled)
 {
     if (action == 0) return int(s_cheats) | (CheatActionAllowed() ? 256 : 0) |
@@ -136,8 +150,8 @@ EMSCRIPTEN_KEEPALIVE int re1_web_cheat(int action, int enabled)
     if (action == 1) { s_cheatsAgreed = true; return 1; }
     if (action == 8) { s_cheats = 0; s_cheatRequest = 0; return 1; }
     if (!s_cheatsAgreed) return 0;
-    if (action == 2 || action == 3) {
-        const unsigned bit = 1u << (action - 2);
+    if (action == 2 || action == 3 || action == 9) {
+        const unsigned bit = action==9?4u:1u << (action - 2);
         // Switching off must always work, even during a scene transition.
         if (enabled && !CheatActionAllowed()) return 0;
         s_cheats = enabled ? s_cheats | bit : s_cheats & ~bit;
@@ -164,6 +178,41 @@ EMSCRIPTEN_KEEPALIVE int re1_web_game_action_binding(int action)
     static const unsigned slots[] = {8, 9, 10, 15, 14};
     if (action == 5) return g_controllerConfig & 3;
     return action >= 0 && action < 5 ? int(g_JoyRemapTbl[1][slots[action]]) : -1;
+}
+// Read-only scene diagnostics for reports and privately supplied room tests.
+EMSCRIPTEN_KEEPALIVE int re1_web_scene_state(int field)
+{
+    switch(field){
+    case 0:return g_stageId;
+    case 1:return g_roomId;
+    case 2:return g_roomCameraId;
+    case 3:return g_DisplayImageWidth;
+    case 4:return g_DisplayImageHeight;
+    case 5:return (g_main_state_flags2&MSF2_SCREEN_BORDER)!=0;
+    case 6:return g_bgCacheMode;
+    case 7:return g_playerEntity.position.x;
+    case 8:return g_playerEntity.position.z;
+    case 9:return g_playerEntity.directionAngle;
+    case 10:return g_CountdownTimer;
+    default:return -1;
+    }
+}
+// Read-only actor diagnostics; the public cheat changes no saved actor fields.
+EMSCRIPTEN_KEEPALIVE int re1_web_enemy_state(int slot,int field)
+{
+    if(slot<0||slot>=30)return -1;
+    const Entity& entity=g_EnemiesList[slot];
+    switch(field){
+    case 0:return (entity.status_flags&1)!=0;
+    case 1:return entity.id;
+    case 2:return entity.state;
+    case 3:return entity.scaMatrixData.localMatrix.t[0];
+    case 4:return entity.scaMatrixData.localMatrix.t[2];
+    case 5:return entity.health;
+    case 6:return entity.hit_state;
+    case 7:return entity.behavior_flags;
+    default:return -1;
+    }
 }
 // Port-owned recovery for input layouts restored by PC/older save files.
 // Explicit only: keep custom game bindings until the player requests reset.
@@ -231,6 +280,14 @@ EM_JS(float, re1_web_inventory_extra, (), {
 EM_JS(float, re1_web_prompt_offset, (float y,unsigned camera), {
     return globalThis.RE1Presentation?.promptOffset(y,camera)||0;
 });
+EM_JS(int, re1_web_countdown_y, (int original,int mode,float y,unsigned camera), {
+    return globalThis.RE1Presentation?.countdownY(original,mode,y,camera)??original;
+});
+short PortCountdownY(short original)
+{
+    const unsigned camera=(unsigned(g_stageId)<<16)|(unsigned(g_roomId)<<8)|g_roomCameraId;
+    return short(re1_web_countdown_y(original,WebPresentationMode(),WebPlayerScreenY(),camera));
+}
 extern "C" float re1_web_layout(float* promptShift,unsigned* promptFont,int* itemBox)
 {
     *promptShift=0;*promptFont=0;*itemBox=0;

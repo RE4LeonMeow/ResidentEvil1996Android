@@ -119,8 +119,14 @@
       const name=prefix+path(value),entry=found.get(name.toLowerCase());
       if(!entry)fail('Mod file is missing: '+name);return entry;
     };
-    if(!json||json.format!=='re1-android-mod'||json.formatVersion!==1||json.game!=='re1-usa')
-      fail('Unsupported mod format. This port needs a re1-android-mod version 1 ZIP for re1-usa.');
+    if(!json||json.format!=='re1-android-mod'||![1,2].includes(json.formatVersion)||json.game!=='re1-usa')
+      fail('Unsupported mod format. Use a re1-android-mod version 1 or 2 ZIP for re1-usa.');
+    let runtime=null;
+    if(json.runtime!==undefined){
+      if(json.formatVersion!==2||!json.runtime||typeof json.runtime!=='object')fail('Campaign data requires mod format version 2.');
+      runtime={campaign:get(json.runtime.campaign),locale:json.runtime.locale===undefined?null:get(json.runtime.locale),originalFont:json.runtime.originalFont===true};
+      if(runtime.campaign.size<2020||runtime.campaign.size>262144||runtime.locale&&(runtime.locale.size<16||runtime.locale.size>2097152))fail('Campaign/translation data is oversized or truncated.');
+    }else if(json.formatVersion===2)fail('Mod format version 2 needs campaign runtime data.');
     if(typeof json.id!=='string'||!/^[a-z0-9][a-z0-9._-]{0,79}$/.test(json.id))fail('mod.json needs an id using letters, numbers, dots, underscores or hyphens.');
     const meta={slug:json.id,name:text(json.name,json.id,120),author:text(json.author,'Unknown author',160),
       version:text(json.version,'1.0',40),description:text(json.description,'',2000),credits:text(json.credits,'',12000)};
@@ -157,8 +163,35 @@
       if(targets.has(key))fail('Duplicate game resource: '+target);targets.add(key);
       return {target,file:get(item.file)};
     });
-    if(!textures.length&&!overrides.length)fail('This mod does not contain any texture or game-data replacements.');
-    return {...meta,textures,overrides};
+    if(!textures.length&&!overrides.length&&!runtime)fail('This mod does not contain any texture or game-data replacements.');
+    return {...meta,textures,overrides,...(runtime?{runtime}:{})};
+  }
+  // R1CP v1: fixed game-state/inventory/music tables plus bounded sound rows.
+  // No executable addresses, imported code or arbitrary filesystem paths.
+  function campaign(bytes){
+    if(!(bytes instanceof Uint8Array)||bytes.length<2020||bytes.length>262144)fail('Invalid campaign data size.');
+    let at=0;
+    const u8=()=>{if(at>=bytes.length)fail('Truncated campaign data.');return bytes[at++];};
+    const u16=()=>{const lo=u8();return lo|(u8()<<8);};
+    const u32=()=>{const lo=u16();return (lo|(u16()<<16))>>>0;};
+    if(u32()!==0x50433152||u32()!==1||u32()!==bytes.length)fail('Invalid campaign data header.');
+    const character=u8(),skipSelection=u8(),x=(u16()<<16)>>16,z=(u16()<<16)>>16,angle=u16();
+    const card=u16(),inventory=u16(),sounds=u16(),groups=u16(),rooms=u16(),seconds=u16();
+    if(character>1||skipSelection>1||angle>4095||card!==1052||inventory!==40||sounds>203||groups!==57||rooms!==224||seconds&&(seconds<60||seconds>3600||seconds%60))fail('Unsupported campaign settings.');
+    const state=bytes.subarray(at,at+card);at+=card;
+    if(state[512]>=7||state[513]>=29||state[514]>=32)fail('Invalid campaign start room.');
+    for(let n=0;n<inventory;n+=2)if(bytes[at+n]>128)fail('Invalid campaign inventory.');at+=inventory;
+    for(let n=0;n<896;n++){const value=u8();if(value!==255&&value>=57)fail('Invalid campaign music group.');}
+    const name=()=>{
+      const size=u8();if(size>63)fail('Campaign sound name is too long.');let value='';
+      for(let n=0;n<size;n++)value+=String.fromCharCode(u8());
+      if(value&&(!/^[A-Za-z0-9_+&.-]+$/.test(value)||value.includes('..')))fail('Unsafe campaign sound name.');
+    };
+    for(let n=0;n<57*4;n++){name();if(u8()>1)fail('Invalid campaign music loop.');}
+    const seen=new Set();
+    for(let n=0;n<sounds;n++){const key=u16();if(key>=203||seen.has(key))fail('Invalid or duplicate campaign sound row.');seen.add(key);for(let i=0;i<48;i++)name();}
+    if(at!==bytes.length)fail('Unexpected data after campaign profile.');
+    return {character,skipSelection:!!skipSelection,x,z,angle,soundRows:sounds,countdownSeconds:seconds||180};
   }
   function dimensions(w,h,ow,oh,page=false){
     if(![w,h,ow,oh].every(Number.isInteger)||w<1||h<1||ow<w||oh<h||ow>MAX_SIDE||oh>MAX_SIDE||
@@ -242,6 +275,6 @@
     }
     return changed?{...mod,records:[...records.values()]}:mod;
   }
-  const api={path,gamePath,text,index,manifest,plan,pcPlan,compatibility,infoFile,parseInfo,modDetails,dimensions,header,imageSize,active,seamlessMovies,upgradeSeamless,crop,crc32,KEY,MAX_PIXELS,MAX_SIDE,MAX_IMAGE_BYTES};
+  const api={path,gamePath,text,index,manifest,plan,campaign,pcPlan,compatibility,infoFile,parseInfo,modDetails,dimensions,header,imageSize,active,seamlessMovies,upgradeSeamless,crop,crc32,KEY,MAX_PIXELS,MAX_SIDE,MAX_IMAGE_BYTES};
   root.RE1ModCore=api;if(typeof module!=='undefined')module.exports=api;
 })(globalThis);

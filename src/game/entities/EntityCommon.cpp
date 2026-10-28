@@ -15,6 +15,7 @@
 // ============================================================================
 #include "EntityCommon.h"
 #include "../../Globals.h"
+#include "../PortCheats.h"
 #include <cstring>
 
 // Plant 42 boss update (0x00464d10).
@@ -1777,7 +1778,11 @@ void update_entities(void)
         if ((ENTITY->status_flags & 0x01) != 0) {
             // 0x0048f12b: Call per-type update function from dispatch table
             void* updateFunc = enemies_update_functions_tbl[ENTITY->id];
-            if (updateFunc != NULL) {
+            // Story NPCs, the lab's animated forearms and door-blocking webs
+            // keep updating. The dispatch check also recognizes DC's Forest
+            // zombie, whose slot normally belongs to the human actor driver.
+            const bool hostile=ENTITY->id<19||updateFunc==(void*)zombie_update;
+            if (updateFunc != NULL && !PortCheatsFreezeEnemy(ENTITY,hostile)) {
                 ((void(*)())updateFunc)();
             }
 

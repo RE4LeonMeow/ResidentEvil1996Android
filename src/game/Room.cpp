@@ -2,6 +2,7 @@
 // Decompiled from Ghidra
 #include "../Globals.h"
 #include "FileLoader.h"
+#include "BackgroundImage.h"
 #include "SpriteRenderer.h"
 #include <cstdio>
 #include "../system/AssetPath.h"
@@ -10,6 +11,7 @@
 
 extern void SetSpriteBufferFlag(void);
 
+#include "../platform/ModCampaign.h"
 // ============================================================================
 // cut_set (0x004628c0)
 // Handles room cutscene/camera transition when entering a new room context.
@@ -727,7 +729,9 @@ void load_room_masks(int param_1) // 0x00475a90
     // the page upload (LoadEffectTextureSheet) and the UV normalisation take
     // the height from the TIM header, so a short page samples correctly; do
     // not reintroduce a 256x256 assumption anywhere on this path.
-    if (*spriteGroupPtr != 0 && room_file_stage() >= STAGE_ARRANGE_FIRST) {
+    // Campaign room edits carry their own camera layout and TIM masks. The
+    // installed GOG objspr pages may describe different cameras entirely.
+    if (*spriteGroupPtr != 0 && (room_file_stage() >= STAGE_ARRANGE_FIRST || PortCampaignActive())) {
         void* timMask = (void*)cameras[param_1].tim_mask_pointer;
         if (timMask != NULL) {
             TexturePage_SetupFull(timMask, g_TextureBankID, g_TextureCurrentPage,
@@ -778,8 +782,13 @@ void load_room_masks(int param_1) // 0x00475a90
 // For each camera in the room, loads the background PAK file, decompresses it,
 // and either displays it immediately (mode 0) or caches it (mode non-zero).
 // ============================================================================
+// Keep each cached PAK's provenance alongside its camera offset. The current
+// path template points to the last preloaded camera, not necessarily the one
+// being displayed later. A room header's camera count is an unsigned byte.
+static bool s_backgroundOverrides[256]{};
 void load_room_bg(void) // 0x00462b00
 {
+    std::memset(s_backgroundOverrides,0,sizeof(s_backgroundOverrides));
     if (g_bgCacheMode == 0) {
         int cameraIdx = 0;
         if (g_RdtPointer->cameras_count != 0) {
@@ -834,7 +843,8 @@ void load_room_bg(void) // 0x00462b00
                     height = 236;
                 }
 
-                display_image(cameraIdx, g_TimImageBuffer__bitmap, width, height);
+                const bool replacement=PortCampaignBackgroundOverride(g_bgPathTemplate+GAME_DATA_ROOT_LEN);
+                display_room_background(cameraIdx, g_TimImageBuffer, width, height,replacement);
                 title_setup_texture_pages(cameraIdx, 1);
                 cameraIdx++;
             } while (cameraIdx < (int)(unsigned int)g_RdtPointer->cameras_count);
@@ -880,6 +890,7 @@ void load_room_bg(void) // 0x00462b00
                 // the shift exactly. See the matching note there: the port shares
                 // one array for both, so the reader has to add the 1 back.
                 g_bgCameraOffsets[camCounter] = totalSize;
+                s_backgroundOverrides[camCounter-1]=PortCampaignBackgroundOverride(g_bgPathTemplate+GAME_DATA_ROOT_LEN);
                 int fileSize = (int)LoadFile(g_bgPathTemplate, &g_bgCacheBuffer[totalSize], 2);
                 totalSize += fileSize;
             } while (camCounter < (int)(unsigned int)g_RdtPointer->cameras_count);
@@ -904,6 +915,7 @@ void load_room_bg_image(void) // 0x004629c0
     }
 
     void* pakData;
+    bool replacement;
     if (g_stageId == STAGE_COURTYARD && g_roomId == ROOM_SCRAPPED_HELIPORT) {
         g_bgPathTemplate[GAME_DATA_PATH_IDX(0x10)] = g_hexCharTable[1];
         g_bgPathTemplate[GAME_DATA_PATH_IDX(0x11)] = g_hexCharTable[1];
@@ -912,6 +924,7 @@ void load_room_bg_image(void) // 0x004629c0
         g_bgPathTemplate[GAME_DATA_PATH_IDX(0x0b)] = g_bgPathTemplate[GAME_DATA_PATH_IDX(0x0f)];
         LoadFile(g_bgPathTemplate, g_bgPakLoadBuffer, 2);
         pakData = g_bgPakLoadBuffer;
+        replacement=PortCampaignBackgroundOverride(g_bgPathTemplate+GAME_DATA_ROOT_LEN);
     } else {
         // 0x00462a5?: g_bgCacheBuffer + (&DAT_00aea090)[g_roomCameraId]. The
         // original reads this table from 0x00aea090 while load_room_bg WRITES it
@@ -921,6 +934,7 @@ void load_room_bg_image(void) // 0x004629c0
         // (camera 6 rendered image 5) and camera 0 only looked correct because
         // slot 0 is never written and happens to be 0.
         pakData = &g_bgCacheBuffer[g_bgCameraOffsets[g_roomCameraId + 1]];
+        replacement=s_backgroundOverrides[g_roomCameraId];
     }
 
     unpack_pakfile_(pakData, g_TimImageBuffer);
@@ -934,7 +948,7 @@ void load_room_bg_image(void) // 0x004629c0
         height = 236;
     }
 
-    display_image(8, g_TimImageBuffer__bitmap, width, height);
+    display_room_background(8, g_TimImageBuffer, width, height,replacement);
     title_setup_texture_pages(8, 1);
     // empty_00470960(8): empty in the original - call dropped
 }
@@ -965,7 +979,7 @@ void load_room_bg_masks(void) // 0x004759d0
             // shipped stages 1-7), and none is needed - load_room_masks reads
             // that camera's mask TIM straight out of the RDT instead. Naming
             // the base room's pak here would load a different camera set's art.
-            if (*maskPointer == 0 || room_file_stage() >= STAGE_ARRANGE_FIRST) {
+            if (*maskPointer == 0 || room_file_stage() >= STAGE_ARRANGE_FIRST || PortCampaignActive()) {
                 fileSize = 0;
             } else {
                 g_maskPathTemplate[GAME_DATA_PATH_IDX(0x11)] = (char)(g_stageId + 0x30);

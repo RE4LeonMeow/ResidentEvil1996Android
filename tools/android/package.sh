@@ -27,7 +27,7 @@ source=source.replace('<manifest ', '<manifest package="org.re1.launcher" ',1)
 pathlib.Path(sys.argv[1]).write_text(source)
 PYMANIFEST
 "$bt/aapt2" compile --dir android/app/src/main/res -o "$out/resources.zip"
-"$bt/aapt2" link -o "$out/shell.apk" -I "$jar" --manifest "$out/AndroidManifest.xml" -A android/app/src/main/assets "$out/resources.zip" --min-sdk-version 28 --target-sdk-version 35 --version-code 42 --version-name 1.1 -0 wasm
+"$bt/aapt2" link -o "$out/shell.apk" -I "$jar" --manifest "$out/AndroidManifest.xml" -A android/app/src/main/assets "$out/resources.zip" --min-sdk-version 28 --target-sdk-version 35 --version-code 47 --version-name 1.11 -0 wasm
 javac -source 17 -target 17 -classpath "$jar" -d "$out/classes" android/app/src/main/java/org/re1/launcher/*.java
 find "$out/classes" -name '*.class' -print > "$out/classes.list"
 "$bt/d8" --lib "$jar" --min-api 28 --output "$out/dex" @"$out/classes.list"
