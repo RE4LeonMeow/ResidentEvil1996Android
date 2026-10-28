@@ -1,6 +1,6 @@
 ## **Resident Evil (1996) Android Port**
 
-**Current version: 1.1**
+**Current version: 1.11**
 
 **Browser edition:** https://github.com/RE4LeonMeow/ResidentEvil1996Browser
 
